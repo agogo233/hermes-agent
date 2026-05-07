@@ -1,27 +1,27 @@
-# -*- Dockerfile.DIY — 优化版 hermes-agent 镜像 -*- 
-# 
-# 安全优化（相较于原版 Dockerfile）: 
-# 1. debian:13.4 (testing) → debian:12-slim (stable) — 获得即时安全更新
-# 2. uv:0.11.6-python3.13-trixie → uv:0.11.6 — 只需 uv 二进制，无需 Python 环境
-# 3. gosu:1.19-trixie → gosu:1.19 — 使用稳定版
-# 4. 所有镜像固定 sha256 digest，确保可重现构建
-# 5. npm_config_install_links=false 改为 RUN 前缀环境变量
-# 注意：Node.js / npm 不可移除（runtime 仍被多个模块依赖）。
+# -*- Dockerfile.DIY — 多阶段构建优化版 hermes-agent -*-
+#
+# 阶段划分:
+#   builder  — npm install, playwright, web/ui-tui 构建, Python venv
+#   runtime  — 仅运行时必要产物，无构建工具链
+#
+# 安全优化（相较于原版 Dockerfile）:
+#   1. debian:13.4 (testing) → debian:12-slim (stable) + 固定 sha256 digest
+#   2. uv:0.11.6-python3.13-trixie → uv:0.11.6 (仅二进制)
+#   3. gosu:1.19-trixie → gosu:1.19 (稳定版)
+#   4. 多阶段构建：构建工具链（gcc/build-essential/Python dev headers）不进入最终镜像
+#   5. npm_config_install_links=false 改为 RUN 前缀环境变量
+#   6. Playwright 浏览器安装到非卷挂载路径
 # ------------------------------------------------------------------------------
 
-# ----- 阶段 1：外部工具拷贝 ----------------------------------------
+# ===== 阶段 1: 构建 ==========================================================
 FROM ghcr.io/astral-sh/uv:0.11.6@sha256:b1e699368d24c57cda93c338a57a8c5a119009ba809305cc8e86986d4a006754 AS uv_source
 FROM tianon/gosu:1.19@sha256:4f3cac1d780201437137b3a693a0bf23f28ef1b5a11262880419fd90c91ef425 AS gosu_source
-FROM debian:12-slim@sha256:f9c6a2fd2ddbc23e336b6257a5245e31f996953ef06cd13a59fa0a1df2d5c252
+FROM debian:12-slim@sha256:f9c6a2fd2ddbc23e336b6257a5245e31f996953ef06cd13a59fa0a1df2d5c252 AS builder
 
-# 禁用 Python stdout 缓冲，确保日志即时输出
 ENV PYTHONUNBUFFERED=1
-
-# Playwright 浏览器安装到非卷挂载路径，避免运行时卷覆盖导致丢失
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
 
-# 安装 Node.js 20.x（Debian 12 默认是 18，Vite 需要 20.19+）
-# 同时安装 curl 和其他系统依赖（合并到一个 RUN 避免层缓存问题）
+# --- 系统依赖（构建时完整版）---
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
@@ -41,34 +41,25 @@ RUN apt-get update && \
         procps \
         git \
         openssh-client \
-        docker.io \
         tini \
         ffmpeg \
         ripgrep && \
     rm -rf /var/lib/apt/lists/*
 
-# 创建非 root 用户（运行时可通过 HERMES_UID 覆盖）
-RUN useradd -u 10000 -m -d /opt/data hermes
-
-# 拷贝外部工具（uvx:0.11.6 为 scratch 镜像，二进制在 / 根目录）
 COPY --chmod=0755 --from=gosu_source /gosu /usr/local/bin/
 COPY --chmod=0755 --from=uv_source /uv /usr/local/bin/uv
 COPY --chmod=0755 --from=uv_source /uvx /usr/local/bin/uvx
 
 WORKDIR /opt/hermes
 
-# ---------- 层缓存依赖安装 ----------
-# 先只拷贝包管理文件，使 npm 安装层可缓存
+# --- 层缓存：先拷贝包清单 ---
 COPY package.json package-lock.json ./
 COPY web/package.json web/package-lock.json web/
 COPY ui-tui/package.json ui-tui/package-lock.json ui-tui/
 COPY ui-tui/packages/hermes-ink/ ui-tui/packages/hermes-ink/
 
-# npm_config_install_links=false:
-# 强制 npm 把 file: 工作区依赖安装为 symlink（而非 copy），
-# 与宿主机 lock 文件保持一致，避免 TUI launcher 重复触发 npm install。
-# 使用 RUN 前缀环境变量而非全局 ENV，减少隐式副作用。
 # 删除 package-lock.json 避免 native binding bug: https://github.com/npm/cli/issues/4828
+# 使用 RUN 前缀环境变量而非全局 ENV
 RUN rm -f package-lock.json web/package-lock.json ui-tui/package-lock.json && \
     npm_config_install_links=false npm install --prefer-offline --no-audit && \
     npx playwright install --with-deps chromium --only-shell && \
@@ -76,27 +67,41 @@ RUN rm -f package-lock.json web/package-lock.json ui-tui/package-lock.json && \
     (cd ui-tui && npm_config_install_links=false npm install --prefer-offline --no-audit) && \
     npm cache clean --force
 
-# ---------- 源码与构建 ----------
-# .dockerignore 已排除 node_modules，构建产物可安全叠加
-COPY --chown=hermes:hermes . . 
-
-RUN cd web && npm run build && \
-    cd ../ui-tui && npm run build
-
-# ---------- 权限调整 ----------
-# 令安装目录可被任何 HERMES_UID 读取，venv 目录需可遍历
+# --- 源码与构建 ---
+COPY --chown=hermes:hermes . .
+RUN cd web && npm run build && cd ../ui-tui && npm run build
 RUN chmod -R a+rX /opt/hermes
 
-# ---------- Python 虚拟环境 ----------
+# --- Python 虚拟环境 ---
 RUN uv venv && \
     uv pip install --no-cache-dir -e ".[all]"
 
-# ---------- 运行时 ----------
+# ===== 阶段 2: 运行时 ========================================================
+FROM debian:12-slim@sha256:f9c6a2fd2ddbc23e336b6257a5245e31f996953ef06cd13a59fa0a1df2d5c252 AS runtime
+
+ENV PYTHONUNBUFFERED=1
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
 ENV HERMES_WEB_DIST=/opt/hermes/hermes_cli/web_dist
 ENV HERMES_HOME=/opt/data
 ENV PATH="/opt/data/.local/bin:${PATH}"
 
-# 数据目录通过 volume 挂出
+# --- 运行时最小依赖 ---
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+        procps \
+        git \
+        tini && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN useradd -u 10000 -m -d /opt/data hermes
+
+COPY --chmod=0755 --from=gosu_source /gosu /usr/local/bin/
+COPY --from=builder /opt/hermes /opt/hermes/
+
+RUN chmod -R a+rX /opt/hermes
+
 VOLUME ["/opt/data"]
 
 ENTRYPOINT ["/usr/bin/tini", "-g", "--", "/opt/hermes/docker/entrypoint.sh"]
