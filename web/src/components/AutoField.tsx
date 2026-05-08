@@ -24,6 +24,7 @@ export function AutoField({
   value,
   onChange,
 }: AutoFieldProps) {
+  const { t } = useI18n();
   const rawLabel = schemaKey.split(".").pop() ?? schemaKey;
   const label = rawLabel.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
