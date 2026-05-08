@@ -6,6 +6,7 @@ import type { GatewayClient } from "@/lib/gatewayClient";
 import { Check, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
+import type { Translations } from "@/i18n/types";
 
 /**
  * Two-stage model picker modal.
@@ -254,6 +255,7 @@ export function ModelPickerDialog(props: Props) {
               setSelectedSlug(slug);
               setSelectedModel("");
             }}
+            t={t}
           />
 
           <ModelColumn
@@ -269,6 +271,7 @@ export function ModelPickerDialog(props: Props) {
               // Confirm on next tick so state settles.
               window.setTimeout(confirm, 0);
             }}
+            t={t}
           />
         </div>
 
@@ -315,6 +318,7 @@ function ProviderColumn({
   selectedSlug,
   query,
   onSelect,
+  t,
 }: {
   loading: boolean;
   error: string | null;
@@ -323,6 +327,7 @@ function ProviderColumn({
   selectedSlug: string;
   query: string;
   onSelect(slug: string): void;
+  t: Translations;
 }) {
   return (
     <div className="border-r border-border overflow-y-auto">
@@ -384,6 +389,7 @@ function ModelColumn({
   currentProviderSlug,
   onSelect,
   onConfirm,
+  t,
 }: {
   provider: ModelOptionProvider | null;
   models: string[];
@@ -393,6 +399,7 @@ function ModelColumn({
   currentProviderSlug: string;
   onSelect(model: string): void;
   onConfirm(model: string): void;
+  t: Translations;
 }) {
   if (!provider) {
     return (
