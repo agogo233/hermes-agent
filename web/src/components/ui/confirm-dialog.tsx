@@ -3,10 +3,11 @@ import { createPortal } from "react-dom";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@nous-research/ui/ui/components/button";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/i18n";
 
 export function ConfirmDialog({
-  cancelLabel = "Cancel",
-  confirmLabel = "Confirm",
+  cancelLabel,
+  confirmLabel,
   description,
   destructive = false,
   loading = false,
@@ -15,7 +16,11 @@ export function ConfirmDialog({
   open,
   title,
 }: ConfirmDialogProps) {
+  const { t } = useI18n();
   const dialogRef = useRef<HTMLDivElement>(null);
+
+  const _cancelLabel = cancelLabel ?? t.components.cancel;
+  const _confirmLabel = confirmLabel ?? t.components.confirm;
 
   // Focus the confirm button when opened; trap ESC to cancel.
   useEffect(() => {
@@ -105,7 +110,7 @@ export function ConfirmDialog({
             onClick={onCancel}
             disabled={loading}
           >
-            {cancelLabel}
+            {_cancelLabel}
           </Button>
           <Button
             data-confirm
@@ -114,7 +119,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             disabled={loading}
           >
-            {loading ? "…" : confirmLabel}
+            {loading ? "…" : _confirmLabel}
           </Button>
         </div>
       </div>

@@ -35,29 +35,13 @@ import { PluginSlot } from "@/plugins";
 /*  Types & helpers                                                    */
 /* ------------------------------------------------------------------ */
 
-const CATEGORY_LABELS: Record<string, string> = {
-  mlops: "MLOps",
-  "mlops/cloud": "MLOps / Cloud",
-  "mlops/evaluation": "MLOps / Evaluation",
-  "mlops/inference": "MLOps / Inference",
-  "mlops/models": "MLOps / Models",
-  "mlops/training": "MLOps / Training",
-  "mlops/vector-databases": "MLOps / Vector DBs",
-  mcp: "MCP",
-  "red-teaming": "Red Teaming",
-  ocr: "OCR",
-  p5js: "p5.js",
-  ai: "AI",
-  ux: "UX",
-  ui: "UI",
-};
-
 function prettyCategory(
   raw: string | null | undefined,
   generalLabel: string,
+  categoryLabels: Record<string, string>,
 ): string {
   if (!raw) return generalLabel;
-  if (CATEGORY_LABELS[raw]) return CATEGORY_LABELS[raw];
+  if (categoryLabels[raw]) return categoryLabels[raw];
   return raw
     .split(/[-_/]/)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -104,6 +88,23 @@ export default function SkillsPage() {
   const { toast, showToast } = useToast();
   const { t } = useI18n();
   const { setAfterTitle, setEnd } = usePageHeader();
+
+  const CATEGORY_LABELS: Record<string, string> = {
+    mlops: t.skillsPage.categories.mlops,
+    "mlops/cloud": t.skillsPage.categories.mlopsCloud,
+    "mlops/evaluation": t.skillsPage.categories.mlopsEvaluation,
+    "mlops/inference": t.skillsPage.categories.mlopsInference,
+    "mlops/models": t.skillsPage.categories.mlopsModels,
+    "mlops/training": t.skillsPage.categories.mlopsTraining,
+    "mlops/vector-databases": t.skillsPage.categories.mlopsVectorDbs,
+    mcp: t.skillsPage.categories.mcp,
+    "red-teaming": t.skillsPage.categories.redTeaming,
+    ocr: t.skillsPage.categories.ocr,
+    p5js: t.skillsPage.categories.p5Js,
+    ai: t.skillsPage.categories.ai,
+    ux: t.skillsPage.categories.ux,
+    ui: t.skillsPage.categories.ui,
+  };
 
   useEffect(() => {
     Promise.all([api.getSkills(), api.getToolsets()])
@@ -181,7 +182,7 @@ export default function SkillsPage() {
       })
       .map(([key, count]) => ({
         key,
-        name: prettyCategory(key === "__none__" ? null : key, t.common.general),
+        name: prettyCategory(key === "__none__" ? null : key, t.common.general, CATEGORY_LABELS),
         count,
       }));
   }, [skills, t]);
@@ -381,6 +382,7 @@ export default function SkillsPage() {
                       ? prettyCategory(
                           activeCategory === "__none__" ? null : activeCategory,
                           t.common.general,
+                          CATEGORY_LABELS,
                         )
                       : t.skills.all}
                   </CardTitle>

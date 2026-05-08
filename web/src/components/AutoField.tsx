@@ -2,6 +2,7 @@ import { Select, SelectOption } from "@nous-research/ui/ui/components/select";
 import { Switch } from "@nous-research/ui/ui/components/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useI18n } from "@/i18n";
 
 function FieldHint({ schema, schemaKey }: { schema: Record<string, unknown>; schemaKey: string }) {
   const keyPath = schemaKey.includes(".") ? schemaKey : "";
@@ -108,7 +109,7 @@ export function AutoField({
                 .filter(Boolean),
             )
           }
-          placeholder="comma-separated values"
+          placeholder={t.components.commaSeparatedValues}
         />
       </div>
     );

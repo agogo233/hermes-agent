@@ -240,6 +240,7 @@ export interface Translations {
     forceReinstall: string;
     headline: string;
     identifierLabel: string;
+    identifierPlaceholder: string;
     inactive: string;
     installBtn: string;
     installHeading: string;
@@ -320,7 +321,27 @@ export interface Translations {
     setupNeeded: string;
     disabledForCli: string;
     more: string;
-  };
+  },
+
+  // ── Skills page (categories) ──
+  skillsPage: {
+    categories: {
+      mlops: string;
+      mlopsCloud: string;
+      mlopsEvaluation: string;
+      mlopsInference: string;
+      mlopsModels: string;
+      mlopsTraining: string;
+      mlopsVectorDbs: string;
+      mcp: string;
+      redTeaming: string;
+      ocr: string;
+      p5Js: string;
+      ai: string;
+      ux: string;
+      ui: string;
+    };
+  },
 
   // ── Config page ──
   config: {
@@ -432,5 +453,36 @@ export interface Translations {
   theme: {
     title: string;
     switchTheme: string;
+  };
+
+  modelPicker: {
+    title: string;
+    filterPlaceholder: string;
+    switchBtn: string;
+    noAuthenticatedProviders: string;
+    noModelsMatchFilter: string;
+    noModelsListed: string;
+  };
+
+  errors: {
+    installFailed: string;
+    rescanFailed: string;
+    saveFailed: string;
+    failed: string;
+    deleteFailed: string;
+    tokenExchangeFailed: string;
+    pluginInstalled: string;
+  };
+
+  components: {
+    switchTheme: string;
+    theme: string;
+    cancel: string;
+    confirm: string;
+    commaSeparatedValues: string;
+  };
+
+  chatSidebar: {
+    eventsDisconnected: string;
   };
 }

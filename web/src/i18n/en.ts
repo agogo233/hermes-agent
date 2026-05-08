@@ -268,6 +268,7 @@ export const en: Translations = {
     headline:
       "Discover, install, enable, and update Hermes plugins (`hermes plugins` parity).",
     identifierLabel: "Git URL or owner/repo",
+    identifierPlaceholder: "owner/repo or https://...",
     inactive: "inactive",
     installBtn: "Install from Git",
     installHeading: "Install from GitHub / Git URL",
@@ -317,6 +318,25 @@ export const en: Translations = {
     setupNeeded: "Setup needed",
     disabledForCli: "Disabled for CLI",
     more: "+{count} more",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / Cloud",
+      mlopsEvaluation: "MLOps / Evaluation",
+      mlopsInference: "MLOps / Inference",
+      mlopsModels: "MLOps / Models",
+      mlopsTraining: "MLOps / Training",
+      mlopsVectorDbs: "MLOps / Vector DBs",
+      mcp: "MCP",
+      redTeaming: "Red Teaming",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "AI",
+      ux: "UX",
+      ui: "UI",
+    },
   },
 
   config: {
@@ -425,5 +445,36 @@ export const en: Translations = {
   theme: {
     title: "Theme",
     switchTheme: "Switch theme",
+  },
+
+  modelPicker: {
+    title: "Switch Model",
+    filterPlaceholder: "Filter providers and models…",
+    switchBtn: "Switch",
+    noAuthenticatedProviders: "no authenticated providers",
+    noModelsMatchFilter: "no models match your filter",
+    noModelsListed: "no models listed for this provider",
+  },
+
+  errors: {
+    installFailed: "Install failed",
+    rescanFailed: "Rescan failed",
+    saveFailed: "Save failed",
+    failed: "Failed",
+    deleteFailed: "delete failed",
+    tokenExchangeFailed: "Token exchange failed",
+    pluginInstalled: "installed",
+  },
+
+  components: {
+    switchTheme: "Switch theme",
+    theme: "Theme",
+    cancel: "Cancel",
+    confirm: "Confirm",
+    commaSeparatedValues: "comma-separated values",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "events feed disconnected — tool calls may not appear",
   },
 };

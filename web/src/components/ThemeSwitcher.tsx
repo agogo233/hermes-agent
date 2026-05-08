@@ -57,8 +57,8 @@ export function ThemeSwitcher({ dropUp = false }: ThemeSwitcherProps) {
         ghost
         onClick={() => setOpen((o) => !o)}
         className="px-2 py-1 normal-case tracking-normal font-normal text-xs text-muted-foreground hover:text-foreground"
-        title={t.theme?.switchTheme ?? "Switch theme"}
-        aria-label={t.theme?.switchTheme ?? "Switch theme"}
+        title={t.theme?.switchTheme ?? t.components.switchTheme}
+        aria-label={t.theme?.switchTheme ?? t.components.switchTheme}
         aria-expanded={open}
         aria-haspopup="listbox"
       >
@@ -77,7 +77,7 @@ export function ThemeSwitcher({ dropUp = false }: ThemeSwitcherProps) {
       {open && (
         <div
           role="listbox"
-          aria-label={t.theme?.title ?? "Theme"}
+          aria-label={t.theme?.title ?? t.components.theme}
           className={cn(
             "absolute z-50 min-w-[240px]",
             dropUp ? "left-0 bottom-full mb-1" : "right-0 top-full mt-1",
@@ -90,7 +90,7 @@ export function ThemeSwitcher({ dropUp = false }: ThemeSwitcherProps) {
               mondwest
               className="text-[0.65rem] tracking-[0.15em] uppercase text-midground/70"
             >
-              {t.theme?.title ?? "Theme"}
+              {t.theme?.title ?? t.components.theme}
             </Typography>
           </div>
 

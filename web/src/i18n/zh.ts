@@ -264,6 +264,7 @@ export const zh: Translations = {
     forceReinstall: "强制重装（先删除已有目录）",
     headline: "发现、安装、启用和更新 Hermes 插件（对齐 `hermes plugins` CLI）。",
     identifierLabel: "Git 地址或 owner/repo",
+    identifierPlaceholder: "owner/repo 或 https://...",
     inactive: "未启用",
     installBtn: "从 Git 安装",
     installHeading: "从 GitHub / Git 地址安装",
@@ -313,6 +314,25 @@ export const zh: Translations = {
     setupNeeded: "需要配置",
     disabledForCli: "CLI 已禁用",
     more: "还有 {count} 个",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / 云",
+      mlopsEvaluation: "MLOps / 评估",
+      mlopsInference: "MLOps / 推理",
+      mlopsModels: "MLOps / 模型",
+      mlopsTraining: "MLOps / 训练",
+      mlopsVectorDbs: "MLOps / 向量数据库",
+      mcp: "MCP",
+      redTeaming: "红队测试",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "AI",
+      ux: "UX",
+      ui: "UI",
+    },
   },
 
   config: {
@@ -420,5 +440,36 @@ export const zh: Translations = {
   theme: {
     title: "主题",
     switchTheme: "切换主题",
+  },
+
+  modelPicker: {
+    title: "切换模型",
+    filterPlaceholder: "筛选提供商和模型...",
+    switchBtn: "切换",
+    noAuthenticatedProviders: "无已认证的提供商",
+    noModelsMatchFilter: "没有符合筛选条件的模型",
+    noModelsListed: "该提供商没有列出模型",
+  },
+
+  errors: {
+    installFailed: "安装失败",
+    rescanFailed: "重新扫描失败",
+    saveFailed: "保存失败",
+    failed: "失败",
+    deleteFailed: "删除失败",
+    tokenExchangeFailed: "令牌交换失败",
+    pluginInstalled: "已安装",
+  },
+
+  components: {
+    switchTheme: "切换主题",
+    theme: "主题",
+    cancel: "取消",
+    confirm: "确认",
+    commaSeparatedValues: "逗号分隔的值",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "事件流已断开 — 工具调用可能不会显示",
   },
 };

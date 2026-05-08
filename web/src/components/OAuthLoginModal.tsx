@@ -130,7 +130,7 @@ export function OAuthLoginModal({ provider, onClose, onSuccess }: Props) {
         window.setTimeout(() => isMounted.current && onClose(), 1500);
       } else {
         setPhase("error");
-        setErrorMsg(resp.message || "Token exchange failed");
+        setErrorMsg(resp.message || t.errors.tokenExchangeFailed);
       }
     } catch (e) {
       if (!isMounted.current) return;

@@ -34,6 +34,7 @@ import { GatewayClient, type ConnectionState } from "@/lib/gatewayClient";
 import { cn } from "@/lib/utils";
 import { AlertCircle, ChevronDown, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useI18n } from "@/i18n";
 
 interface SessionInfo {
   cwd?: string;
@@ -74,6 +75,9 @@ interface ChatSidebarProps {
 }
 
 export function ChatSidebar({ channel, className }: ChatSidebarProps) {
+  const { t } = useI18n();
+  const disconnectedMsg = t.chatSidebar.eventsDisconnected;
+
   // `version` bumps on reconnect; gw is derived so we never call setState
   // for it inside an effect (React 19's set-state-in-effect rule). The
   // counter is the dependency on purpose — it's not read in the memo body,
@@ -166,7 +170,7 @@ export function ChatSidebar({ channel, className }: ChatSidebarProps) {
     // `unmounting` suppresses the banner during cleanup — `ws.close()`
     // from the effect's return fires a close event with code 1005 that
     // would otherwise look like an unexpected drop.
-    const DISCONNECTED = "events feed disconnected — tool calls may not appear";
+    const DISCONNECTED = disconnectedMsg;
     let unmounting = false;
     const surface = (msg: string) => !unmounting && setError(msg);
 

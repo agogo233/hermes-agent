@@ -86,14 +86,14 @@ export default function PluginsPage() {
         force: installForce,
         enable: installEnable,
       });
-      showToast(`${r.plugin_name ?? id} installed`, "success");
+      showToast(`${r.plugin_name ?? id} ${t.errors.pluginInstalled}`, "success");
       if ((r.warnings?.length ?? 0) > 0) showToast(r.warnings!.join(" "), "error");
       if ((r.missing_env?.length ?? 0) > 0)
         showToast(`${t.pluginsPage.missingEnvWarn} ${r.missing_env!.join(", ")}`, "error");
       setInstallId("");
       await loadHub();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Install failed", "error");
+      showToast(e instanceof Error ? e.message : t.errors.installFailed, "error");
     } finally {
       setInstallBusy(false);
     }
@@ -109,7 +109,7 @@ export default function PluginsPage() {
       );
       await loadHub();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Rescan failed", "error");
+      showToast(e instanceof Error ? e.message : t.errors.rescanFailed, "error");
     } finally {
       setRescanBusy(false);
     }
@@ -126,7 +126,7 @@ export default function PluginsPage() {
       showToast(t.pluginsPage.savedProviders, "success");
       await loadHub();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Save failed", "error");
+      showToast(e instanceof Error ? e.message : t.errors.saveFailed, "error");
     } finally {
       setProviderBusy(false);
     }
@@ -138,7 +138,7 @@ export default function PluginsPage() {
       await fn();
       await loadHub();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Failed", "error");
+      showToast(e instanceof Error ? e.message : t.errors.failed, "error");
     } finally {
       setRowBusy(null);
     }
@@ -239,7 +239,7 @@ export default function PluginsPage() {
               <Input
                 className="normal-case font-sans lowercase"
                 id="install-url"
-                placeholder="owner/repo or https://..."
+                placeholder={t.pluginsPage.identifierPlaceholder}
                 spellCheck={false}
                 value={installId}
                 onChange={(e) => setInstallId(e.target.value)}

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import type { GatewayClient } from "@/lib/gatewayClient";
 import { Check, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useI18n } from "@/i18n";
 
 /**
  * Two-stage model picker modal.
@@ -73,7 +74,9 @@ export function ModelPickerDialog(props: Props) {
     title = "Switch Model",
     alwaysGlobal = false,
   } = props;
+  const { t } = useI18n();
   const standalone = !!loader && !!onApply;
+  const _title = title || t.modelPicker.title;
 
   const [providers, setProviders] = useState<ModelOptionProvider[]>([]);
   const [currentModel, setCurrentModel] = useState("");
@@ -218,7 +221,7 @@ export function ModelPickerDialog(props: Props) {
             id="model-picker-title"
             className="font-display text-base tracking-wider uppercase"
           >
-            {title}
+            {_title}
           </h2>
           <p className="text-xs text-muted-foreground mt-1 font-mono">
             current: {currentModel || "(unknown)"}
@@ -231,7 +234,7 @@ export function ModelPickerDialog(props: Props) {
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               autoFocus
-              placeholder="Filter providers and models…"
+              placeholder={t.modelPicker.filterPlaceholder}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="pl-7 h-8 text-sm"
@@ -291,7 +294,7 @@ export function ModelPickerDialog(props: Props) {
               Cancel
             </Button>
             <Button onClick={confirm} disabled={!canConfirm}>
-              {applying ? <Spinner /> : "Switch"}
+              {applying ? <Spinner /> : t.modelPicker.switchBtn}
             </Button>
           </div>
         </footer>
@@ -334,10 +337,10 @@ function ProviderColumn({
       {!loading && !error && providers.length === 0 && (
         <div className="p-4 text-xs text-muted-foreground italic">
           {query
-            ? "no matches"
+            ? t.common.noResults
             : total === 0
-              ? "no authenticated providers"
-              : "no matches"}
+              ? t.modelPicker.noAuthenticatedProviders
+              : t.common.noResults}
         </div>
       )}
 
@@ -412,8 +415,8 @@ function ModelColumn({
       {models.length === 0 ? (
         <div className="p-4 text-xs text-muted-foreground italic">
           {allModels.length
-            ? "no models match your filter"
-            : "no models listed for this provider"}
+            ? t.modelPicker.noModelsMatchFilter
+            : t.modelPicker.noModelsListed}
         </div>
       ) : (
         models.map((m) => {

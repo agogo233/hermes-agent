@@ -555,7 +555,7 @@ export default function SessionsPage() {
           showToast(t.sessions.sessionDeleted, "success");
         } catch {
           showToast(t.sessions.failedToDelete, "error");
-          throw new Error("delete failed");
+          throw new Error(t.errors.deleteFailed);
         }
       },
       [
