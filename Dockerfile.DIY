@@ -92,7 +92,8 @@ RUN apt-get update && \
         ca-certificates \
         procps \
         git \
-        tini && \
+        tini \
+        python3 && \
     rm -rf /var/lib/apt/lists/*
 
 RUN useradd -u 10000 -m -d /opt/data hermes
