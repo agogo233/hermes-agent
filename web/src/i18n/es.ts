@@ -268,6 +268,7 @@ export const es: Translations = {
     headline:
       "Descubre, instala, habilita y actualiza complementos de Hermes (equivalente a `hermes plugins`).",
     identifierLabel: "URL de Git u owner/repo",
+    identifierPlaceholder: "owner/repo o https://...",
     inactive: "inactivo",
     installBtn: "Instalar desde Git",
     installHeading: "Instalar desde GitHub / URL de Git",
@@ -317,6 +318,56 @@ export const es: Translations = {
     setupNeeded: "Configuración necesaria",
     disabledForCli: "Deshabilitado para CLI",
     more: "+{count} más",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / Cloud",
+      mlopsEvaluation: "MLOps / Evaluación",
+      mlopsInference: "MLOps / Inferencia",
+      mlopsModels: "MLOps / Modelos",
+      mlopsTraining: "MLOps / Entrenamiento",
+      mlopsVectorDbs: "MLOps / Bases de datos vectoriales",
+      mcp: "MCP",
+      redTeaming: "Red Teaming",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "IA",
+      ux: "UX",
+      ui: "IU",
+    },
+  },
+
+  modelPicker: {
+    title: "Cambiar modelo",
+    filterPlaceholder: "Filtrar proveedores y modelos...",
+    switchBtn: "Cambiar",
+    noAuthenticatedProviders: "sin proveedores autenticados",
+    noModelsMatchFilter: "ningún modelo coincide con tu filtro",
+    noModelsListed: "no hay modelos listados para este proveedor",
+  },
+
+  errors: {
+    installFailed: "Instalación fallida",
+    rescanFailed: "Reescaneo fallido",
+    saveFailed: "Guardado fallido",
+    failed: "Fallido",
+    deleteFailed: "eliminación fallida",
+    tokenExchangeFailed: "Intercambio de token fallido",
+    pluginInstalled: "instalado",
+  },
+
+  components: {
+    switchTheme: "Cambiar tema",
+    theme: "Tema",
+    cancel: "Cancelar",
+    confirm: "Confirmar",
+    commaSeparatedValues: "valores separados por comas",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "fuente de eventos desconectada — las llamadas de herramientas pueden no aparecer",
   },
 
   config: {

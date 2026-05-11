@@ -268,6 +268,7 @@ export const ga: Translations = {
     headline:
       "Faigh, suiteáil, cumasaigh agus nuashonraigh plugins Hermes (paireacht le `hermes plugins`).",
     identifierLabel: "URL Git nó owner/repo",
+    identifierPlaceholder: "owner/repo nó https://...",
     inactive: "neamhghníomhach",
     installBtn: "Suiteáil ó Git",
     installHeading: "Suiteáil ó GitHub / URL Git",
@@ -317,6 +318,56 @@ export const ga: Translations = {
     setupNeeded: "Socrú ag teastáil",
     disabledForCli: "Díchumasaithe don CLI",
     more: "+{count} eile",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / Cloud",
+      mlopsEvaluation: "MLOps / Measúnú",
+      mlopsInference: "MLOps / Inferéid",
+      mlopsModels: "MLOps / Modhanna",
+      mlopsTraining: "MLOps / Oiliúint",
+      mlopsVectorDbs: "MLOps / DBs Veicteoir",
+      mcp: "MCP",
+      redTeaming: "Red Teaming",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "AI",
+      ux: "UX",
+      ui: "UI",
+    },
+  },
+
+  modelPicker: {
+    title: "Athraigh sampla",
+    filterPlaceholder: "Scag soláthraithe agus samplaí...",
+    switchBtn: "Athraigh",
+    noAuthenticatedProviders: "gan soláthraithe faomhaithe",
+    noModelsMatchFilter: "níl aon mhodhanna ag teacht leis an scagaire",
+    noModelsListed: "níl aon mhodhanna liostaithe don soláthraí seo",
+  },
+
+  errors: {
+    installFailed: "Theip ar shuiteáil",
+    rescanFailed: "Theip ar athscanadh",
+    saveFailed: "Theip ar shábháil",
+    failed: "Theip",
+    deleteFailed: "theip ar scriosadh",
+    tokenExchangeFailed: "Theip ar mhalartú token",
+    pluginInstalled: "suiteáilte",
+  },
+
+  components: {
+    switchTheme: "Athraigh téama",
+    theme: "Téama",
+    cancel: "Cealaigh",
+    confirm: "Deimhnigh",
+    commaSeparatedValues: "luachanna scartha le camóga",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "fotha imeachtaí díchliceáilte — seans nach bhfeicfear glaoí uirlisí",
   },
 
   config: {

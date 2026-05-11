@@ -268,6 +268,7 @@ export const ko: Translations = {
     headline:
       "Hermes 플러그인을 검색, 설치, 활성화 및 업데이트합니다 (`hermes plugins` 동등).",
     identifierLabel: "Git URL 또는 owner/repo",
+    identifierPlaceholder: "owner/repo 또는 https://...",
     inactive: "비활성",
     installBtn: "Git에서 설치",
     installHeading: "GitHub / Git URL에서 설치",
@@ -317,6 +318,56 @@ export const ko: Translations = {
     setupNeeded: "설정 필요",
     disabledForCli: "CLI에서 비활성화됨",
     more: "+{count}개 더",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / 클라우드",
+      mlopsEvaluation: "MLOps / 평가",
+      mlopsInference: "MLOps / 추론",
+      mlopsModels: "MLOps / 모델",
+      mlopsTraining: "MLOps / 학습",
+      mlopsVectorDbs: "MLOps / 벡터 DB",
+      mcp: "MCP",
+      redTeaming: "레드팀",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "AI",
+      ux: "UX",
+      ui: "UI",
+    },
+  },
+
+  modelPicker: {
+    title: "모델 전환",
+    filterPlaceholder: "제공자와 모델 필터링...",
+    switchBtn: "전환",
+    noAuthenticatedProviders: "인증된 제공자 없음",
+    noModelsMatchFilter: "필터와 일치하는 모델 없음",
+    noModelsListed: "이 제공자에 나열된 모델 없음",
+  },
+
+  errors: {
+    installFailed: "설치 실패",
+    rescanFailed: "재스캔 실패",
+    saveFailed: "저장 실패",
+    failed: "실패",
+    deleteFailed: "삭제 실패",
+    tokenExchangeFailed: "토큰 교환 실패",
+    pluginInstalled: "설치됨",
+  },
+
+  components: {
+    switchTheme: "테마 전환",
+    theme: "테마",
+    cancel: "취소",
+    confirm: "확인",
+    commaSeparatedValues: "쉼표로 구분된 값",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "이벤트 피드 연결 해제됨 — 도구 호출이 나타하지 않을 수 있음",
   },
 
   config: {

@@ -268,6 +268,7 @@ export const de: Translations = {
     headline:
       "Hermes-Plugins entdecken, installieren, aktivieren und aktualisieren (entspricht `hermes plugins`).",
     identifierLabel: "Git-URL oder owner/repo",
+    identifierPlaceholder: "owner/repo oder https://...",
     inactive: "inaktiv",
     installBtn: "Aus Git installieren",
     installHeading: "Aus GitHub / Git-URL installieren",
@@ -317,6 +318,56 @@ export const de: Translations = {
     setupNeeded: "Einrichtung erforderlich",
     disabledForCli: "Für CLI deaktiviert",
     more: "+{count} weitere",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / Cloud",
+      mlopsEvaluation: "MLOps / Evaluation",
+      mlopsInference: "MLOps / Inferenz",
+      mlopsModels: "MLOps / Modelle",
+      mlopsTraining: "MLOps / Training",
+      mlopsVectorDbs: "MLOps / Vektor-DBs",
+      mcp: "MCP",
+      redTeaming: "Red Teaming",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "KI",
+      ux: "UX",
+      ui: "UI",
+    },
+  },
+
+  modelPicker: {
+    title: "Modell wechseln",
+    filterPlaceholder: "Anbieter und Modelle filtern...",
+    switchBtn: "Wechseln",
+    noAuthenticatedProviders: "keine authentifizierten Anbieter",
+    noModelsMatchFilter: "keine Modelle entsprechen deinem Filter",
+    noModelsListed: "keine Modelle für diesen Anbieter aufgelistet",
+  },
+
+  errors: {
+    installFailed: "Installation fehlgeschlagen",
+    rescanFailed: "Neu-Scan fehlgeschlagen",
+    saveFailed: "Speichern fehlgeschlagen",
+    failed: "Fehlgeschlagen",
+    deleteFailed: "Löschen fehlgeschlagen",
+    tokenExchangeFailed: "Token-Austausch fehlgeschlagen",
+    pluginInstalled: "installiert",
+  },
+
+  components: {
+    switchTheme: "Thema wechseln",
+    theme: "Thema",
+    cancel: "Abbrechen",
+    confirm: "Bestätigen",
+    commaSeparatedValues: "kommagetrennte Werte",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "Ereignis-Feed getrennt — Tool-Aufrufe werden möglicherweise nicht angezeigt",
   },
 
   config: {

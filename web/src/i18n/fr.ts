@@ -268,6 +268,7 @@ export const fr: Translations = {
     headline:
       "Découvrez, installez, activez et mettez à jour les plugins Hermes (parité avec `hermes plugins`).",
     identifierLabel: "URL Git ou owner/repo",
+    identifierPlaceholder: "owner/repo ou https://...",
     inactive: "inactif",
     installBtn: "Installer depuis Git",
     installHeading: "Installer depuis GitHub / URL Git",
@@ -317,6 +318,56 @@ export const fr: Translations = {
     setupNeeded: "Configuration nécessaire",
     disabledForCli: "Désactivé pour CLI",
     more: "+{count} de plus",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / Cloud",
+      mlopsEvaluation: "MLOps / Évaluation",
+      mlopsInference: "MLOps / Inference",
+      mlopsModels: "MLOps / Modèles",
+      mlopsTraining: "MLOps / Entraînement",
+      mlopsVectorDbs: "MLOps / BDs vectorielles",
+      mcp: "MCP",
+      redTeaming: "Red Teaming",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "IA",
+      ux: "UX",
+      ui: "UI",
+    },
+  },
+
+  modelPicker: {
+    title: "Changer de modèle",
+    filterPlaceholder: "Filtrer les fournisseurs et modèles...",
+    switchBtn: "Changer",
+    noAuthenticatedProviders: "aucun fournisseur authentifié",
+    noModelsMatchFilter: "aucun modèle ne correspond à votre filtre",
+    noModelsListed: "aucun modèle listé pour ce fournisseur",
+  },
+
+  errors: {
+    installFailed: "Échec de l'installation",
+    rescanFailed: "Échec du re-scanning",
+    saveFailed: "Échec de la sauvegarde",
+    failed: "Échoué",
+    deleteFailed: "suppression échouée",
+    tokenExchangeFailed: "Échec de l'échange de token",
+    pluginInstalled: "installé",
+  },
+
+  components: {
+    switchTheme: "Changer de thème",
+    theme: "Thème",
+    cancel: "Annuler",
+    confirm: "Confirmer",
+    commaSeparatedValues: "valeurs séparées par des virgules",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "flux d'événements déconnecté — les appels d'outils peuvent ne pas apparaître",
   },
 
   config: {

@@ -268,6 +268,7 @@ export const it: Translations = {
     headline:
       "Scopri, installa, abilita e aggiorna i plugin Hermes (parità con `hermes plugins`).",
     identifierLabel: "URL Git o owner/repo",
+    identifierPlaceholder: "owner/repo o https://...",
     inactive: "inattivo",
     installBtn: "Installa da Git",
     installHeading: "Installa da GitHub / URL Git",
@@ -317,6 +318,56 @@ export const it: Translations = {
     setupNeeded: "Configurazione necessaria",
     disabledForCli: "Disabilitato per CLI",
     more: "+{count} in più",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / Cloud",
+      mlopsEvaluation: "MLOps / Valutazione",
+      mlopsInference: "MLOps / Inferenza",
+      mlopsModels: "MLOps / Modelli",
+      mlopsTraining: "MLOps / Addestramento",
+      mlopsVectorDbs: "MLOps / DB vettoriali",
+      mcp: "MCP",
+      redTeaming: "Red Teaming",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "AI",
+      ux: "UX",
+      ui: "UI",
+    },
+  },
+
+  modelPicker: {
+    title: "Cambia modello",
+    filterPlaceholder: "Filtra provider e modelli...",
+    switchBtn: "Cambia",
+    noAuthenticatedProviders: "nessun provider autenticato",
+    noModelsMatchFilter: "nessun modello corrisponde al filtro",
+    noModelsListed: "nessun modello elencato per questo provider",
+  },
+
+  errors: {
+    installFailed: "Installazione fallita",
+    rescanFailed: "Riscansione fallita",
+    saveFailed: "Salvataggio fallito",
+    failed: "Fallito",
+    deleteFailed: "eliminazione fallita",
+    tokenExchangeFailed: "Scambio token fallito",
+    pluginInstalled: "installato",
+  },
+
+  components: {
+    switchTheme: "Cambia tema",
+    theme: "Tema",
+    cancel: "Annulla",
+    confirm: "Conferma",
+    commaSeparatedValues: "valori separati da virgola",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "flusso eventi disconnesso — le chiamate strumento potrebbero non apparire",
   },
 
   config: {

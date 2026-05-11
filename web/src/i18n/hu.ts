@@ -268,6 +268,7 @@ export const hu: Translations = {
     headline:
       "Hermes-bővítmények felfedezése, telepítése, engedélyezése és frissítése (a `hermes plugins` paritás).",
     identifierLabel: "Git URL vagy owner/repo",
+    identifierPlaceholder: "owner/repo vagy https://...",
     inactive: "inaktív",
     installBtn: "Telepítés Gitből",
     installHeading: "Telepítés GitHubról / Git URL-ről",
@@ -317,6 +318,56 @@ export const hu: Translations = {
     setupNeeded: "Beállítás szükséges",
     disabledForCli: "CLI-hez letiltva",
     more: "+{count} további",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / Cloud",
+      mlopsEvaluation: "MLOps / Értékelés",
+      mlopsInference: "MLOps / Következtetés",
+      mlopsModels: "MLOps / Modellek",
+      mlopsTraining: "MLOps / Tréning",
+      mlopsVectorDbs: "MLOps / Vektoros DB-k",
+      mcp: "MCP",
+      redTeaming: "Red Teaming",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "MI",
+      ux: "UX",
+      ui: "UI",
+    },
+  },
+
+  modelPicker: {
+    title: "Modell váltása",
+    filterPlaceholder: "Szolgáltatók és modellek szűrése...",
+    switchBtn: "Váltás",
+    noAuthenticatedProviders: "nincs hitelesített szolgáltató",
+    noModelsMatchFilter: "egyetlen modell sem felel meg a szűrőnek",
+    noModelsListed: "nincs modell listázva ehhez a szolgáltatóhoz",
+  },
+
+  errors: {
+    installFailed: "Sikertelen telepítés",
+    rescanFailed: "Sikertelen újraszkennelés",
+    saveFailed: "Sikertelen mentés",
+    failed: "Sikertelen",
+    deleteFailed: "sikertelen törlés",
+    tokenExchangeFailed: "Sikertelen token csere",
+    pluginInstalled: "telepítve",
+  },
+
+  components: {
+    switchTheme: "Téma váltása",
+    theme: "Téma",
+    cancel: "Mégse",
+    confirm: "Megerősít",
+    commaSeparatedValues: "vesszővel elválasztott értékek",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "eseményfolyam leválasztva — előfordulhat, hogy az eszközhívások nem jelennek meg",
   },
 
   config: {

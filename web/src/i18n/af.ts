@@ -268,6 +268,7 @@ export const af: Translations = {
     headline:
       "Ontdek, installeer, aktiveer en werk Hermes-inproppe op (`hermes plugins` ekwivalent).",
     identifierLabel: "Git-URL of owner/repo",
+    identifierPlaceholder: "owner/repo of https://...",
     inactive: "onaktief",
     installBtn: "Installeer vanaf Git",
     installHeading: "Installeer vanaf GitHub / Git-URL",
@@ -317,6 +318,56 @@ export const af: Translations = {
     setupNeeded: "Opstelling nodig",
     disabledForCli: "Gedeaktiveer vir CLI",
     more: "+{count} meer",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / Cloud",
+      mlopsEvaluation: "MLOps / Evaluation",
+      mlopsInference: "MLOps / Inference",
+      mlopsModels: "MLOps / Models",
+      mlopsTraining: "MLOps / Training",
+      mlopsVectorDbs: "MLOps / Vector DBs",
+      mcp: "MCP",
+      redTeaming: "Red Teaming",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "AI",
+      ux: "UX",
+      ui: "UI",
+    },
+  },
+
+  modelPicker: {
+    title: "Skakel model",
+    filterPlaceholder: "Filter verskaffers en modelle...",
+    switchBtn: "Skakel",
+    noAuthenticatedProviders: "geen geverifieerde verskaffers",
+    noModelsMatchFilter: "geen modelle stem ooreen met jou filter nie",
+    noModelsListed: "geen modelle gelys vir hierdie verskaffer nie",
+  },
+
+  errors: {
+    installFailed: "Installasie misluk",
+    rescanFailed: "Herskandering misluk",
+    saveFailed: "Stoor misluk",
+    failed: "Misluk",
+    deleteFailed: "verwydering misluk",
+    tokenExchangeFailed: "Token-omruiling misluk",
+    pluginInstalled: "geïnstalleer",
+  },
+
+  components: {
+    switchTheme: "Wissel tema",
+    theme: "Tema",
+    cancel: "Kanselleer",
+    confirm: "Bevestig",
+    commaSeparatedValues: "kommageskeide waardes",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "gebeure-invoer ontkoppel — gereedskaproepe verskyn dalk nie",
   },
 
   config: {

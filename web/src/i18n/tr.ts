@@ -268,6 +268,7 @@ export const tr: Translations = {
     headline:
       "Hermes eklentilerini keşfedin, yükleyin, etkinleştirin ve güncelleyin (`hermes plugins` ile eşdeğer).",
     identifierLabel: "Git URL veya owner/repo",
+    identifierPlaceholder: "owner/repo veya https://...",
     inactive: "pasif",
     installBtn: "Git'ten yükle",
     installHeading: "GitHub / Git URL'sinden yükle",
@@ -317,6 +318,56 @@ export const tr: Translations = {
     setupNeeded: "Kurulum gerekli",
     disabledForCli: "CLI için devre dışı",
     more: "+{count} daha",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / Bulut",
+      mlopsEvaluation: "MLOps / Değerlendirme",
+      mlopsInference: "MLOps / Çıkarım",
+      mlopsModels: "MLOps / Modeller",
+      mlopsTraining: "MLOps / Eğitim",
+      mlopsVectorDbs: "MLOps / Vektör DB",
+      mcp: "MCP",
+      redTeaming: "Red Teaming",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "AI",
+      ux: "UX",
+      ui: "UI",
+    },
+  },
+
+  modelPicker: {
+    title: "Model değiştir",
+    filterPlaceholder: "Sağlayıcıları ve modelleri filtrele...",
+    switchBtn: "Değiştir",
+    noAuthenticatedProviders: "doğrulanmış sağlayıcı yok",
+    noModelsMatchFilter: "filtreyle eşleşen model yok",
+    noModelsListed: "bu sağlayıcı için listelenen model yok",
+  },
+
+  errors: {
+    installFailed: "Kurulum başarısız",
+    rescanFailed: "Yeniden tarama başarısız",
+    saveFailed: "Kaydetme başarısız",
+    failed: "Başarısız",
+    deleteFailed: "silme başarısız",
+    tokenExchangeFailed: "Token değişimi başarısız",
+    pluginInstalled: "kuruldu",
+  },
+
+  components: {
+    switchTheme: "Temayı değiştir",
+    theme: "Tema",
+    cancel: "İptal",
+    confirm: "Onayla",
+    commaSeparatedValues: "virgülle ayrılmış değerler",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "olay akışı kesildi — araç çağrıları görünmeyebilir",
   },
 
   config: {

@@ -268,6 +268,7 @@ export const zhHant: Translations = {
     headline:
       "探索、安裝、啟用並更新 Hermes 外掛（對齊 `hermes plugins` CLI）。",
     identifierLabel: "Git 網址或 owner/repo",
+    identifierPlaceholder: "owner/repo 或 https://...",
     inactive: "未啟用",
     installBtn: "從 Git 安裝",
     installHeading: "從 GitHub / Git URL 安裝",
@@ -317,6 +318,56 @@ export const zhHant: Translations = {
     setupNeeded: "需要設定",
     disabledForCli: "CLI 已停用",
     more: "還有 {count} 個",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / 雲端",
+      mlopsEvaluation: "MLOps / 評估",
+      mlopsInference: "MLOps / 推論",
+      mlopsModels: "MLOps / 模型",
+      mlopsTraining: "MLOps / 訓練",
+      mlopsVectorDbs: "MLOps / 向量資料庫",
+      mcp: "MCP",
+      redTeaming: "紅隊演練",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "AI",
+      ux: "UX",
+      ui: "UI",
+    },
+  },
+
+  modelPicker: {
+    title: "切換模型",
+    filterPlaceholder: "篩選供應商和模型...",
+    switchBtn: "切換",
+    noAuthenticatedProviders: "無已驗證的供應商",
+    noModelsMatchFilter: "沒有符合篩選條件的模型",
+    noModelsListed: "此供應商無列出模型",
+  },
+
+  errors: {
+    installFailed: "安裝失敗",
+    rescanFailed: "重新掃描失敗",
+    saveFailed: "儲存失敗",
+    failed: "失敗",
+    deleteFailed: "刪除失敗",
+    tokenExchangeFailed: "權杖交換失敗",
+    pluginInstalled: "已安裝",
+  },
+
+  components: {
+    switchTheme: "切換主題",
+    theme: "主題",
+    cancel: "取消",
+    confirm: "確認",
+    commaSeparatedValues: "逗號分隔的值",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "事件饋線已斷開 — 工具呼叫可能不會顯示",
   },
 
   config: {

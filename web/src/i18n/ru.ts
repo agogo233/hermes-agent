@@ -268,6 +268,7 @@ export const ru: Translations = {
     headline:
       "Поиск, установка, включение и обновление плагинов Hermes (аналог `hermes plugins`).",
     identifierLabel: "Git URL или owner/repo",
+    identifierPlaceholder: "owner/repo или https://...",
     inactive: "неактивно",
     installBtn: "Установить из Git",
     installHeading: "Установка из GitHub / Git URL",
@@ -317,6 +318,56 @@ export const ru: Translations = {
     setupNeeded: "Требуется настройка",
     disabledForCli: "Отключено для CLI",
     more: "+{count} ещё",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / Облако",
+      mlopsEvaluation: "MLOps / Оценка",
+      mlopsInference: "MLOps / Инференс",
+      mlopsModels: "MLOps / Модели",
+      mlopsTraining: "MLOps / Обучение",
+      mlopsVectorDbs: "MLOps / Векторные БД",
+      mcp: "MCP",
+      redTeaming: "Red Teaming",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "AI",
+      ux: "UX",
+      ui: "UI",
+    },
+  },
+
+  modelPicker: {
+    title: "Сменить модель",
+    filterPlaceholder: "Фильтровать провайдеров и модели...",
+    switchBtn: "Сменить",
+    noAuthenticatedProviders: "нет аутентифицированных провайдеров",
+    noModelsMatchFilter: "нет моделей, соответствующих фильтру",
+    noModelsListed: "нет моделей для этого провайдера",
+  },
+
+  errors: {
+    installFailed: "Ошибка установки",
+    rescanFailed: "Ошибка повторного сканирования",
+    saveFailed: "Ошибка сохранения",
+    failed: "Ошибка",
+    deleteFailed: "ошибка удаления",
+    tokenExchangeFailed: "Ошибка обмена токена",
+    pluginInstalled: "установлен",
+  },
+
+  components: {
+    switchTheme: "Сменить тему",
+    theme: "Тема",
+    cancel: "Отмена",
+    confirm: "Подтвердить",
+    commaSeparatedValues: "значения через запятую",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "поток событий отключён — вызовы инструментов могут не отображаться",
   },
 
   config: {

@@ -268,6 +268,7 @@ export const ja: Translations = {
     headline:
       "Hermes プラグインを発見、インストール、有効化、更新します (`hermes plugins` 相当)。",
     identifierLabel: "Git URL または owner/repo",
+    identifierPlaceholder: "owner/repo または https://...",
     inactive: "非アクティブ",
     installBtn: "Git からインストール",
     installHeading: "GitHub / Git URL からインストール",
@@ -317,6 +318,56 @@ export const ja: Translations = {
     setupNeeded: "セットアップが必要",
     disabledForCli: "CLI では無効",
     more: "+{count} 件",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / クラウド",
+      mlopsEvaluation: "MLOps / 評価",
+      mlopsInference: "MLOps / 推論",
+      mlopsModels: "MLOps / モデル",
+      mlopsTraining: "MLOps / トレーニング",
+      mlopsVectorDbs: "MLOps / ベクトルDB",
+      mcp: "MCP",
+      redTeaming: "レッドチーム",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "AI",
+      ux: "UX",
+      ui: "UI",
+    },
+  },
+
+  modelPicker: {
+    title: "モデル切替",
+    filterPlaceholder: "プロバイダーとモデルをフィルター...",
+    switchBtn: "切替",
+    noAuthenticatedProviders: "認証されたプロバイダーがありません",
+    noModelsMatchFilter: "フィルターに一致するモデルがありません",
+    noModelsListed: "このプロバイダーにリストされたモデルがありません",
+  },
+
+  errors: {
+    installFailed: "インストール失敗",
+    rescanFailed: "再スキャン失敗",
+    saveFailed: "保存失敗",
+    failed: "失敗",
+    deleteFailed: "削除失敗",
+    tokenExchangeFailed: "トークン交換失敗",
+    pluginInstalled: "インストール済み",
+  },
+
+  components: {
+    switchTheme: "テーマ切替",
+    theme: "テーマ",
+    cancel: "キャンセル",
+    confirm: "確認",
+    commaSeparatedValues: "カンマ区切りの値",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "イベントフィードが切断されました — ツール呼び出しが表示されない場合があります",
   },
 
   config: {

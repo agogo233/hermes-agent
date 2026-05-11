@@ -268,6 +268,7 @@ export const uk: Translations = {
     headline:
       "Знаходьте, встановлюйте, вмикайте та оновлюйте плагіни Hermes (паритет з `hermes plugins`).",
     identifierLabel: "Git URL або owner/repo",
+    identifierPlaceholder: "owner/repo або https://...",
     inactive: "неактивний",
     installBtn: "Встановити з Git",
     installHeading: "Встановити з GitHub / Git URL",
@@ -317,6 +318,56 @@ export const uk: Translations = {
     setupNeeded: "Потрібне налаштування",
     disabledForCli: "Вимкнено для CLI",
     more: "+ще {count}",
+  },
+
+  skillsPage: {
+    categories: {
+      mlops: "MLOps",
+      mlopsCloud: "MLOps / Хмара",
+      mlopsEvaluation: "MLOps / Оцінювання",
+      mlopsInference: "MLOps / Інференс",
+      mlopsModels: "MLOps / Моделі",
+      mlopsTraining: "MLOps / Навчання",
+      mlopsVectorDbs: "MLOps / Векторні БД",
+      mcp: "MCP",
+      redTeaming: "Red Teaming",
+      ocr: "OCR",
+      p5Js: "p5.js",
+      ai: "AI",
+      ux: "UX",
+      ui: "UI",
+    },
+  },
+
+  modelPicker: {
+    title: "Змінити модель",
+    filterPlaceholder: "Фільтрувати провайдерів і моделі...",
+    switchBtn: "Змінити",
+    noAuthenticatedProviders: "немає автентифікованих провайдерів",
+    noModelsMatchFilter: "немає моделей, що відповідають фільтру",
+    noModelsListed: "немає моделей для цього провайдера",
+  },
+
+  errors: {
+    installFailed: "Помилка встановлення",
+    rescanFailed: "Помилка повторного сканування",
+    saveFailed: "Помилка збереження",
+    failed: "Помилка",
+    deleteFailed: "помилка видалення",
+    tokenExchangeFailed: "Помилка обміну токена",
+    pluginInstalled: "встановлено",
+  },
+
+  components: {
+    switchTheme: "Змінити тему",
+    theme: "Тема",
+    cancel: "Скасувати",
+    confirm: "Підтвердити",
+    commaSeparatedValues: "значення через кому",
+  },
+
+  chatSidebar: {
+    eventsDisconnected: "потік подій від'єднано — виклики інструментів можуть не з'являтися",
   },
 
   config: {
