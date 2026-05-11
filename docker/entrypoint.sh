@@ -97,7 +97,7 @@ fi
 
 # Sync bundled skills (manifest-based so user edits are preserved)
 if [ -d "$INSTALL_DIR/skills" ]; then
-    python3 "$INSTALL_DIR/tools/skills_sync.py"
+    python "$INSTALL_DIR/tools/skills_sync.py"
 fi
 
 # Optionally start `hermes dashboard` as a side-process.
