@@ -5,24 +5,26 @@
 #   runtime  — 仅运行时必要产物，无构建工具链
 #
 # 安全优化（相较于原版 Dockerfile）:
-#   1. debian:13.4 (testing) → debian:12-slim (stable) + 固定 sha256 digest
+#   1. debian:13.4 (testing) → python:3.13-slim (trixie) + 固定 sha256 digest
 #   2. uv:0.11.6-python3.13-trixie → uv:0.11.6 (仅二进制)
 #   3. gosu:1.19-trixie → gosu:1.19 (稳定版)
 #   4. 多阶段构建：构建工具链（gcc/build-essential/Python dev headers）不进入最终镜像
 #   5. npm_config_install_links=false 改为 RUN 前缀环境变量
 #   6. Playwright 浏览器安装到非卷挂载路径
+#   7. Python 依赖层缓存：pyproject.toml/uv.lock 先行 COPY，源码变更不触发重装
+#   8. runtime 补充 ffmpeg / openssh-client / docker-cli + node_modules 权限修复
+#   9. 清理 __pycache__ / .pyc 缩减镜像体积
 # ------------------------------------------------------------------------------
 
 # ===== 阶段 1: 构建 ==========================================================
 FROM ghcr.io/astral-sh/uv:0.11.6@sha256:b1e699368d24c57cda93c338a57a8c5a119009ba809305cc8e86986d4a006754 AS uv_source
 FROM tianon/gosu:1.19@sha256:4f3cac1d780201437137b3a693a0bf23f28ef1b5a11262880419fd90c91ef425 AS gosu_source
-FROM python:3.12-slim@sha256:ec948fa5f90f4f8907e89f4800cfd2d2e91e391a4bce4a6afa77ba265bc3a2fe AS builder
+FROM python:3.13-slim@sha256:d49c1ff87eb98eac346fc250f52925f726eb913c43a92854246dd03c9692ad67 AS builder
 
 ENV PYTHONUNBUFFERED=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
 
 # --- 系统依赖（构建时完整版）---
-# python:3.12-slim 自带 Python 3.12，无需额外安装 python3/python3-dev
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
@@ -66,17 +68,23 @@ RUN rm -f package-lock.json web/package-lock.json ui-tui/package-lock.json && \
     (cd ui-tui && npm_config_install_links=false npm install --prefer-offline --no-audit) && \
     npm cache clean --force
 
+# --- Python 依赖缓存层（与源码分离）---
+COPY --chown=hermes:hermes pyproject.toml uv.lock ./
+RUN touch ./README.md
+RUN uv sync --frozen --no-install-project --extra all
+
 # --- 源码与构建 ---
 COPY --chown=hermes:hermes . .
 RUN cd web && npm run build && cd ../ui-tui && npm run build
-RUN chmod -R a+rX /opt/hermes
+RUN chmod -R a+rX /opt/hermes && \
+    find /opt/hermes -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; \
+    find /opt/hermes -type f -name '*.pyc' -delete
 
-# --- Python 虚拟环境 ---
-RUN uv venv && \
-    uv pip install --no-cache-dir -e ".[all]"
+# --- 链接 hermes-agent（依赖已缓存，仅需创建 editable link）---
+RUN uv pip install --no-cache-dir --no-deps -e "."
 
 # ===== 阶段 2: 运行时 ========================================================
-FROM python:3.12-slim@sha256:ec948fa5f90f4f8907e89f4800cfd2d2e91e391a4bce4a6afa77ba265bc3a2fe AS runtime
+FROM python:3.13-slim@sha256:d49c1ff87eb98eac346fc250f52925f726eb913c43a92854246dd03c9692ad67 AS runtime
 
 ENV PYTHONUNBUFFERED=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
@@ -85,14 +93,16 @@ ENV HERMES_HOME=/opt/data
 ENV PATH="/opt/data/.local/bin:${PATH}"
 
 # --- 运行时最小依赖 ---
-# python:3.12-slim 自带 Python 3.12
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
         ca-certificates \
         procps \
         git \
-        tini && \
+        tini \
+        ffmpeg \
+        openssh-client \
+        docker-cli && \
     rm -rf /var/lib/apt/lists/*
 
 RUN useradd -u 10000 -m -d /opt/data hermes
@@ -100,7 +110,8 @@ RUN useradd -u 10000 -m -d /opt/data hermes
 COPY --chmod=0755 --from=gosu_source /gosu /usr/local/bin/
 COPY --from=builder /opt/hermes /opt/hermes/
 
-RUN chmod -R a+rX /opt/hermes
+RUN chmod -R a+rX /opt/hermes && \
+    chown -R hermes:hermes /opt/hermes/ui-tui /opt/hermes/node_modules
 
 VOLUME ["/opt/data"]
 
