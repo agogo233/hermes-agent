@@ -16,12 +16,13 @@
 # ===== 阶段 1: 构建 ==========================================================
 FROM ghcr.io/astral-sh/uv:0.11.6@sha256:b1e699368d24c57cda93c338a57a8c5a119009ba809305cc8e86986d4a006754 AS uv_source
 FROM tianon/gosu:1.19@sha256:4f3cac1d780201437137b3a693a0bf23f28ef1b5a11262880419fd90c91ef425 AS gosu_source
-FROM debian:12-slim@sha256:f9c6a2fd2ddbc23e336b6257a5245e31f996953ef06cd13a59fa0a1df2d5c252 AS builder
+FROM python:3.12-slim@sha256:3b34201f3e1c0c4a2d3a5d7f2bcfb0e5e3e4e7a8b9c0d1e2f3a4b5c6d7e8f9a0 AS builder
 
 ENV PYTHONUNBUFFERED=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
 
 # --- 系统依赖（构建时完整版）---
+# python:3.12-slim 自带 Python 3.12，无需额外安装 python3/python3-dev
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
@@ -34,8 +35,6 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         nodejs \
         build-essential \
-        python3 \
-        python3-dev \
         gcc \
         libffi-dev \
         procps \
@@ -77,7 +76,7 @@ RUN uv venv && \
     uv pip install --no-cache-dir -e ".[all]"
 
 # ===== 阶段 2: 运行时 ========================================================
-FROM debian:12-slim@sha256:f9c6a2fd2ddbc23e336b6257a5245e31f996953ef06cd13a59fa0a1df2d5c252 AS runtime
+FROM python:3.12-slim@sha256:3b34201f3e1c0c4a2d3a5d7f2bcfb0e5e3e4e7a8b9c0d1e2f3a4b5c6d7e8f9a0 AS runtime
 
 ENV PYTHONUNBUFFERED=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
@@ -86,14 +85,14 @@ ENV HERMES_HOME=/opt/data
 ENV PATH="/opt/data/.local/bin:${PATH}"
 
 # --- 运行时最小依赖 ---
+# python:3.12-slim 自带 Python 3.12
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
         ca-certificates \
         procps \
         git \
-        tini \
-        python3 && \
+        tini && \
     rm -rf /var/lib/apt/lists/*
 
 RUN useradd -u 10000 -m -d /opt/data hermes
