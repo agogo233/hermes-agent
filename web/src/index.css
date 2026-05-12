@@ -64,6 +64,8 @@
      system stack so themes that don't override look native. */
   --theme-font-sans: "Microsoft YaHei", "微软雅黑", system-ui, -apple-system,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Note: ThemeProvider.typographyVars() overwrites this at runtime.
+     The canonical copy lives in themes/presets.ts — keep both in sync. */
   --theme-font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo,
     Consolas, monospace;
   --theme-font-display: var(--theme-font-sans);

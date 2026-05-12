@@ -17,7 +17,7 @@ import type { DashboardTheme, ThemeTypography, ThemeLayout } from "./types";
 
 /** Default system stack — neutral, safe fallback for every platform. */
 const SYSTEM_SANS =
-  'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  '"Microsoft YaHei", "微软雅黑", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const SYSTEM_MONO =
   'ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace';
 
