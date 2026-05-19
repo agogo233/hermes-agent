@@ -7,6 +7,7 @@ import { Check, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
 import type { Translations } from "@/i18n/types";
+import { createPortal } from "react-dom";
 
 /**
  * Two-stage model picker modal.
@@ -198,7 +199,14 @@ export function ModelPickerDialog(props: Props) {
     }
   };
 
-  return (
+  // Portal to document.body: the main dashboard column in App.tsx is
+  // `relative z-2`, which creates a stacking context that traps fixed
+  // descendants below the app sidebar (z-50). Without the portal this
+  // modal's z-[100] is scoped to z-2 and the sidebar covers its left
+  // edge — visible especially in the Large theme variants where the
+  // larger root font widens the dialog into the sidebar's column. See
+  // Toast.tsx for the same pattern.
+  return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
@@ -302,7 +310,8 @@ export function ModelPickerDialog(props: Props) {
           </div>
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

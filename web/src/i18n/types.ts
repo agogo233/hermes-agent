@@ -718,6 +718,7 @@ modelPicker: {
     columnLabels: {
       triage: string;
       todo: string;
+      scheduled?: string;
       ready: string;
       running: string;
       blocked: string;
@@ -727,6 +728,7 @@ modelPicker: {
     columnHelp: {
       triage: string;
       todo: string;
+      scheduled?: string;
       ready: string;
       running: string;
       blocked: string;
@@ -736,6 +738,7 @@ modelPicker: {
     confirmDone: string;
     confirmArchive: string;
     confirmBlocked: string;
+    confirmScheduled?: string;
     completionSummary: string;
     completionSummaryRequired: string;
     triagePlaceholder: string;
