@@ -718,7 +718,7 @@ modelPicker: {
     columnLabels: {
       triage: string;
       todo: string;
-      scheduled?: string;
+      scheduled: string;
       ready: string;
       running: string;
       blocked: string;
@@ -728,7 +728,7 @@ modelPicker: {
     columnHelp: {
       triage: string;
       todo: string;
-      scheduled?: string;
+      scheduled: string;
       ready: string;
       running: string;
       blocked: string;
