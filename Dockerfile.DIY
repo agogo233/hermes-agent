@@ -12,7 +12,7 @@
 #   5. npm_config_install_links=false 改为 RUN 前缀环境变量
 #   6. Playwright 浏览器安装到非卷挂载路径
 #   7. Python 依赖层缓存：pyproject.toml/uv.lock 先行 COPY，源码变更不触发重装
-#   8. runtime 补充 ffmpeg / openssh-client / docker-cli + node_modules 权限修复
+#   8. runtime 补充 nodejs/npm / ffmpeg / openssh-client / docker-cli + node_modules 权限修复
 #   9. 清理 __pycache__ / .pyc 缩减镜像体积
 # ------------------------------------------------------------------------------
 
@@ -36,9 +36,6 @@ RUN apt-get update && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         nodejs \
-        build-essential \
-        gcc \
-        libffi-dev \
         procps \
         git \
         openssh-client \
@@ -73,7 +70,10 @@ RUN rm -f package-lock.json web/package-lock.json ui-tui/package-lock.json && \
 # --- Python 依赖缓存层（与源码分离）---
 COPY --chown=hermes:hermes pyproject.toml uv.lock ./
 RUN touch ./README.md
-RUN uv sync --frozen --no-install-project --extra all
+RUN uv sync --frozen --no-install-project \
+    --extra cron --extra cli --extra pty --extra mcp \
+    --extra homeassistant --extra sms --extra acp \
+    --extra google --extra web --extra youtube
 
 # --- 源码与构建 ---
 COPY --chown=hermes:hermes . .
@@ -99,6 +99,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
         ca-certificates \
+        nodejs \
+        npm \
         procps \
         git \
         tini \
