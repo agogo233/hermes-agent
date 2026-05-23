@@ -259,8 +259,8 @@ export default function SkillsPage() {
           <div className="sm:sticky sm:top-0">
             <div className="flex flex-col rounded-none border border-border bg-muted/20">
               <div className="hidden sm:flex items-center gap-2 px-3 py-2 border-b border-border">
-                <Filter className="h-3 w-3 text-muted-foreground" />
-                <span className="font-mondwest text-[0.65rem] tracking-[0.12em] uppercase text-muted-foreground">
+                <Filter className="h-3 w-3 text-text-tertiary" />
+                <span className="font-mondwest text-display text-xs tracking-[0.12em] text-text-secondary">
                   {t.skills.filters}
                 </span>
               </div>
@@ -291,7 +291,7 @@ export default function SkillsPage() {
                 !isSearching &&
                 allCategories.length > 0 && (
                   <div className="hidden sm:flex flex-col border-t border-border">
-                    <div className="px-3 pt-2 pb-1 font-mondwest text-[0.6rem] tracking-[0.12em] uppercase text-muted-foreground/70">
+                    <div className="px-3 pt-2 pb-1 font-mondwest text-display text-xs tracking-[0.12em] text-text-tertiary">
                       {t.skills.categories}
                     </div>
                     <div className="flex flex-col p-2 pt-1 gap-px max-h-[calc(100vh-340px)] overflow-y-auto">
@@ -305,14 +305,14 @@ export default function SkillsPage() {
                             onClick={() =>
                               setActiveCategory(isActive ? null : key)
                             }
-                            className="rounded-none px-2 py-1 text-[11px]"
+                            className="rounded-none px-2 py-1 text-xs"
                           >
                             <span className="flex-1 truncate">{name}</span>
                             <span
-                              className={`text-[10px] tabular-nums ${
+                              className={`text-xs tabular-nums ${
                                 isActive
-                                  ? "text-foreground/60"
-                                  : "text-muted-foreground/50"
+                                  ? "text-text-secondary"
+                                  : "text-text-tertiary"
                               }`}
                             >
                               {count}
@@ -336,7 +336,7 @@ export default function SkillsPage() {
                     <Search className="h-4 w-4" />
                     {t.skills.title}
                   </CardTitle>
-                  <Badge tone="secondary" className="text-[10px]">
+                  <Badge tone="secondary" className="text-xs">
                     {t.skills.resultCount
                       .replace("{count}", String(searchMatchedSkills.length))
                       .replace(
@@ -381,7 +381,7 @@ export default function SkillsPage() {
                         )
                       : t.skills.all}
                   </CardTitle>
-                  <Badge tone="secondary" className="text-[10px]">
+                  <Badge tone="secondary" className="text-xs">
                     {t.skills.skillCount
                       .replace("{count}", String(activeSkills.length))
                       .replace("{s}", activeSkills.length !== 1 ? "s" : "")}
@@ -439,18 +439,18 @@ export default function SkillsPage() {
                                 </span>
                                 <Badge
                                   tone={ts.enabled ? "success" : "outline"}
-                                  className="text-[10px]"
+                                  className="text-xs"
                                 >
                                   {ts.enabled
                                     ? t.common.active
                                     : t.common.inactive}
                                 </Badge>
                               </div>
-                              <p className="text-xs text-muted-foreground mb-2">
+                              <p className="text-xs text-text-secondary mb-2">
                                 {ts.description}
                               </p>
                               {ts.enabled && !ts.configured && (
-                                <p className="text-[10px] text-amber-300/80 mb-2">
+                                <p className="text-xs text-amber-300 mb-2">
                                   {t.skills.setupNeeded}
                                 </p>
                               )}
@@ -460,7 +460,7 @@ export default function SkillsPage() {
                                     <Badge
                                       key={tool}
                                       tone="secondary"
-                                      className="text-[10px] font-mono"
+                                      className="text-xs font-mono"
                                     >
                                       {tool}
                                     </Badge>
@@ -468,7 +468,7 @@ export default function SkillsPage() {
                                 </div>
                               )}
                               {ts.tools.length === 0 && (
-                                <span className="text-[10px] text-muted-foreground/60">
+                                <span className="text-xs text-text-tertiary">
                                   {ts.enabled
                                     ? t.skills.toolsetLabel.replace(
                                         "{name}",
