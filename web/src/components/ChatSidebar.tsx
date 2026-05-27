@@ -35,7 +35,6 @@ import { HERMES_BASE_PATH, buildWsAuthParam } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { AlertCircle, ChevronDown, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useI18n } from "@/i18n";
 
 interface SessionInfo {
   cwd?: string;
