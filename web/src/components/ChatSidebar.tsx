@@ -77,7 +77,6 @@ interface ChatSidebarProps {
 
 export function ChatSidebar({ channel, className }: ChatSidebarProps) {
   const { t } = useI18n();
-  const disconnectedMsg = t.chatSidebar.eventsDisconnected;
 
   // `version` bumps on reconnect; gw is derived so we never call setState
   // for it inside an effect (React 19's set-state-in-effect rule). The
