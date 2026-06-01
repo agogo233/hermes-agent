@@ -145,9 +145,6 @@ export function ThemeSwitcher({ collapsed = false, dropUp = false }: ThemeSwitch
           </div>
         );
         return dropUp ? createPortal(dropdown, document.body) : dropdown;
-          </div>
-        );
-        return dropUp ? createPortal(dropdown, document.body) : dropdown;
       })()}
     </div>
   );
