@@ -54,8 +54,8 @@ WORKDIR /opt/hermes
 
 # --- 层缓存：先拷贝包清单 ---
 COPY package.json package-lock.json ./
-COPY web/package.json web/package-lock.json web/
-COPY ui-tui/package.json ui-tui/package-lock.json ui-tui/
+COPY web/package.json web/
+COPY ui-tui/package.json ui-tui/
 COPY ui-tui/packages/hermes-ink/ ui-tui/packages/hermes-ink/
 
 # 删除 package-lock.json 避免 native binding bug: https://github.com/npm/cli/issues/4828
