@@ -34,7 +34,7 @@ import {
   shouldAutoDrainOnSettle,
   updateQueuedPrompt
 } from '@/store/composer-queue'
-import { $messages } from '@/store/session'
+import { $gatewayState, $messages } from '@/store/session'
 import { $threadScrolledUp } from '@/store/thread-scroll'
 
 import { extractDroppedFiles, HERMES_PATHS_MIME } from '../hooks/use-composer-actions'
@@ -65,7 +65,7 @@ import {
   RICH_INPUT_SLOT
 } from './rich-editor'
 import { SkinSlashPopover } from './skin-slash-popover'
-import { detectTrigger, extractClipboardImageBlobs, shouldSkipTriggerRefreshOnKeyUp, textBeforeCaret, type TriggerState } from './text-utils'
+import { detectTrigger, extractClipboardImageBlobs, textBeforeCaret, type TriggerState } from './text-utils'
 import { ComposerTriggerPopover } from './trigger-popover'
 import type { ChatBarProps } from './types'
 import { UrlDialog } from './url-dialog'
@@ -156,7 +156,15 @@ export function ChatBar({
   const busyAction = busy && hasComposerPayload ? 'queue' : 'stop'
   const showHelpHint = draft === '?'
 
-  const placeholder = disabled ? 'Starting Hermes...' : 'Send follow-up'
+  const gatewayState = useStore($gatewayState)
+  // When the bar is disabled it's because the gateway isn't open. Distinguish a
+  // cold start ("Starting Hermes...") from a dropped connection we're trying to
+  // restore (e.g. after the Mac slept) so the stuck state reads as recoverable.
+  const placeholder = disabled
+    ? gatewayState === 'closed' || gatewayState === 'error'
+      ? 'Reconnecting to Hermes…'
+      : 'Starting Hermes...'
+    : 'Send follow-up'
 
   const focusInput = useCallback(() => {
     focusComposerInput(editorRef.current)
@@ -421,6 +429,14 @@ export function ChatBar({
   const [trigger, setTrigger] = useState<TriggerState | null>(null)
   const [triggerActive, setTriggerActive] = useState(0)
   const [triggerItems, setTriggerItems] = useState<readonly Unstable_TriggerItem[]>([])
+  // Set synchronously in keydown when the open trigger popover consumes a
+  // navigation/control key (Arrow/Enter/Tab/Escape). The subsequent keyup must
+  // NOT run refreshTrigger for that keypress: it never edits text, and for
+  // Escape the keydown has already set trigger=null, so a keyup refresh would
+  // re-detect the still-present `/` and instantly reopen the menu. A ref is
+  // used instead of reading `trigger` in keyup because by keyup time React has
+  // re-rendered and the handler closure sees the post-keydown state.
+  const triggerKeyConsumedRef = useRef(false)
 
   const refreshTrigger = useCallback(() => {
     const editor = editorRef.current
@@ -559,6 +575,13 @@ export function ChatBar({
   }
 
   const handleEditorKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // IME composition: Enter confirms composed text, not a message submission.
+    // Without this guard, pressing Enter to finalise a Korean/Japanese/Chinese
+    // IME preedit fires submitDraft() and splits the message mid-word.
+    if (event.nativeEvent.isComposing) {
+      return
+    }
+
     if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'k') {
       event.preventDefault()
 
@@ -572,6 +595,7 @@ export function ChatBar({
     if (trigger && triggerItems.length > 0) {
       if (event.key === 'ArrowDown') {
         event.preventDefault()
+        triggerKeyConsumedRef.current = true
         setTriggerActive(idx => (idx + 1) % triggerItems.length)
 
         return
@@ -579,6 +603,7 @@ export function ChatBar({
 
       if (event.key === 'ArrowUp') {
         event.preventDefault()
+        triggerKeyConsumedRef.current = true
         setTriggerActive(idx => (idx - 1 + triggerItems.length) % triggerItems.length)
 
         return
@@ -586,6 +611,7 @@ export function ChatBar({
 
       if (event.key === 'Enter' || event.key === 'Tab') {
         event.preventDefault()
+        triggerKeyConsumedRef.current = true
         const item = triggerItems[triggerActive]
 
         if (item) {
@@ -597,6 +623,7 @@ export function ChatBar({
 
       if (event.key === 'Escape') {
         event.preventDefault()
+        triggerKeyConsumedRef.current = true
         closeTrigger()
 
         return
@@ -616,12 +643,16 @@ export function ChatBar({
     }
   }
 
-  const handleEditorKeyUp = (event: KeyboardEvent<HTMLDivElement>) => {
-    // Arrow/Enter/Tab/Escape while the trigger menu is open are fully handled
-    // in keydown and never edit text. Refreshing the trigger here would reset
-    // the highlight to the top (breaking ArrowDown/ArrowUp) and re-open a menu
-    // that Escape just closed, so skip it.
-    if (shouldSkipTriggerRefreshOnKeyUp(event.key, trigger !== null)) {
+  const handleEditorKeyUp = () => {
+    // If this keyup belongs to a key the open trigger popover already consumed
+    // in keydown (Arrow/Enter/Tab/Escape), skip the refresh. Those keys never
+    // edit text, and for Escape the keydown already closed the menu — a refresh
+    // here would re-detect the still-present `/` and instantly reopen it. We
+    // read a ref set during keydown rather than `trigger`, because by keyup
+    // time React has re-rendered and `trigger` may already be null.
+    if (triggerKeyConsumedRef.current) {
+      triggerKeyConsumedRef.current = false
+
       return
     }
 
@@ -1066,8 +1097,8 @@ export function ChatBar({
     <div className={cn('relative', stacked ? 'w-full' : 'min-w-(--composer-input-inline-min-width) flex-1')}>
       <div
         aria-label="Message"
-        autoCorrect="off"
         autoCapitalize="off"
+        autoCorrect="off"
         className={cn(
           'min-h-(--composer-input-min-height) max-h-(--composer-input-max-height) overflow-y-auto bg-transparent pb-1 pr-1 pt-1 leading-normal text-foreground outline-none disabled:cursor-not-allowed',
           'empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/60',
@@ -1107,7 +1138,7 @@ export function ChatBar({
 
         `asChild` swaps TextareaAutosize for a Radix Slot wrapping our
         plain <textarea>, which carries the binding but skips autosize. */}
-      <ComposerPrimitive.Input asChild tabIndex={-1} unstable_focusOnScrollToBottom={false}>
+      <ComposerPrimitive.Input asChild submitMode="ctrlEnter" tabIndex={-1} unstable_focusOnScrollToBottom={false}>
         <textarea aria-hidden className="sr-only" tabIndex={-1} />
       </ComposerPrimitive.Input>
     </div>
