@@ -1268,6 +1268,7 @@ export const zh: Translations = {
       sessionRunning: '会话运行中',
       needsInput: '需要你输入',
       waitingForAnswer: '正在等待你的回答',
+      handoffOrigin: platform => `从 ${platform} 转接`,
       renamed: '已重命名',
       renameFailed: '重命名失败',
       renameTitle: '重命名会话',
@@ -1801,7 +1802,8 @@ export const zh: Translations = {
       restoreCheckpoint: '恢复检查点',
       restoreNext: '恢复下一个检查点',
       goForward: '前进',
-      sendEdited: '发送编辑后的消息'
+      sendEdited: '发送编辑后的消息',
+      attachingFile: '正在附加…'
     },
     approval: {
       gatewayDisconnected: 'Hermes 网关未连接',

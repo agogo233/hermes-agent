@@ -240,7 +240,7 @@ export default function PluginsPage() {
               <Input
                 className="font-mono-ui lowercase"
                 id="install-url"
-                placeholder={t.pluginsPage.identifierPlaceholder}
+placeholder={t.pluginsPage.identifierPlaceholder}
                 spellCheck={false}
                 value={installId}
                 onChange={(e) => setInstallId(e.target.value)}
