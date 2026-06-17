@@ -77,7 +77,6 @@ interface ChatSidebarProps {
 }
 
 export function ChatSidebar({ channel, profile, className }: ChatSidebarProps) {
->>>>>>> upstream/main
   // `version` bumps on reconnect; gw is derived so we never call setState
   // for it inside an effect (React 19's set-state-in-effect rule). The
   // counter is the dependency on purpose — it's not read in the memo body,
