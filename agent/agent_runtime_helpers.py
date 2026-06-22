@@ -1050,6 +1050,11 @@ def restore_primary_runtime(agent) -> bool:
         agent._fallback_activated = False
         agent._fallback_index = 0
 
+        # Undo the fallback's identity rewrite so the prompt is
+        # byte-identical to the stored copy again (prefix cache match).
+        from agent.chat_completion_helpers import rewrite_prompt_model_identity
+        rewrite_prompt_model_identity(agent, rt["model"], rt["provider"])
+
         logger.info(
             "Primary runtime restored for new turn: %s (%s)",
             agent.model, agent.provider,
@@ -1384,6 +1389,21 @@ def create_openai_client(agent, client_kwargs: dict, *, reason: str, shared: boo
         client = GeminiCloudCodeClient(**safe_kwargs)
         _ra().logger.info(
             "Gemini Cloud Code Assist client created (%s, shared=%s) %s",
+            reason,
+            shared,
+            agent._client_log_context(),
+        )
+        return client
+    if agent.provider == "google-antigravity" or str(client_kwargs.get("base_url", "")).startswith("antigravity-pa://"):
+        from agent.antigravity_cloudcode_adapter import AntigravityCloudCodeClient
+
+        safe_kwargs = {
+            k: v for k, v in client_kwargs.items()
+            if k in {"api_key", "base_url", "default_headers", "project_id", "timeout"}
+        }
+        client = AntigravityCloudCodeClient(**safe_kwargs)
+        _ra().logger.info(
+            "Antigravity Code Assist client created (%s, shared=%s) %s",
             reason,
             shared,
             agent._client_log_context(),
@@ -1839,28 +1859,42 @@ def invoke_tool(agent, function_name: str, function_args: dict, effective_task_i
     elif function_name == "memory":
         def _execute(next_args: dict) -> Any:
             target = next_args.get("target", "memory")
+            operations = next_args.get("operations")
             from tools.memory_tool import memory_tool as _memory_tool
             result = _memory_tool(
                 action=next_args.get("action"),
                 target=target,
                 content=next_args.get("content"),
                 old_text=next_args.get("old_text"),
+                operations=operations,
                 store=agent._memory_store,
             )
-            # Bridge: notify external memory provider of built-in memory writes
-            if agent._memory_manager and next_args.get("action") in {"add", "replace"}:
-                try:
-                    agent._memory_manager.on_memory_write(
-                        next_args.get("action", ""),
-                        target,
-                        next_args.get("content", ""),
-                        metadata=agent._build_memory_write_metadata(
-                            task_id=effective_task_id,
-                            tool_call_id=tool_call_id,
-                        ),
+            # Bridge: notify external memory provider of built-in memory writes.
+            # Covers both the single-op shape and each add/replace inside a batch.
+            if agent._memory_manager:
+                if operations:
+                    _mem_ops = [
+                        op for op in operations
+                        if isinstance(op, dict) and op.get("action") in {"add", "replace"}
+                    ]
+                else:
+                    _mem_ops = (
+                        [{"action": next_args.get("action"), "content": next_args.get("content")}]
+                        if next_args.get("action") in {"add", "replace"} else []
                     )
-                except Exception:
-                    pass
+                for _op in _mem_ops:
+                    try:
+                        agent._memory_manager.on_memory_write(
+                            _op.get("action", ""),
+                            target,
+                            _op.get("content", "") or "",
+                            metadata=agent._build_memory_write_metadata(
+                                task_id=effective_task_id,
+                                tool_call_id=tool_call_id,
+                            ),
+                        )
+                    except Exception:
+                        pass
             return _finish_agent_tool(result, next_args)
     elif agent._memory_manager and agent._memory_manager.has_tool(function_name):
         def _execute(next_args: dict) -> Any:
