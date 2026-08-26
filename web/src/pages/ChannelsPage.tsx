@@ -32,6 +32,8 @@ import type {
   MessagingPlatformUpdate,
   TelegramOnboardingStartResponse,
   WhatsAppOnboardingStartResponse,
+  WeixinOnboardingStartResponse,
+  QqbotOnboardingStartResponse,
 } from "@/lib/api";
 import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { usePageHeader } from "@/contexts/usePageHeader";
@@ -127,6 +129,417 @@ function isTerminalWhatsAppOnboardingError(error: unknown): boolean {
 
 function normalizeWhatsAppMode(mode: unknown): "bot" | "self-chat" | null {
   return mode === "bot" || mode === "self-chat" ? mode : null;
+}
+
+function isTerminalQROnboardingError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /\b410\b/.test(message) && /\b(expired|gone)\b/i.test(message);
+}
+
+const WEIXIN_DM_POLICY_OPTIONS: { value: string; label: string }[] = [
+  { value: "pairing", label: "Pairing (recommended)" },
+  { value: "open", label: "Allow all DMs" },
+  { value: "allowlist", label: "Allowlisted only" },
+  { value: "disabled", label: "Disable DMs" },
+];
+
+const QQBOT_DM_POLICY_OPTIONS: { value: string; label: string }[] = [
+  { value: "pairing", label: "Pairing (recommended)" },
+  { value: "open", label: "Allow all DMs" },
+  { value: "allowlist", label: "Allowlisted only" },
+];
+
+interface QrOnboardingPanelProps {
+  onChanged: () => Promise<void>;
+  onRestartNeeded: () => void;
+  platform: MessagingPlatform;
+  setRestartNeeded: (needed: boolean) => void;
+  showToast: (message: string, type: "success" | "error") => void;
+  dmPolicyOptions: { value: string; label: string }[];
+  connectedLabel: string;
+  connectedHelp: string;
+  applyPlatform: string;
+  applySuccessMessage: string;
+  applyFailMessage: (detail: string) => string;
+  connectedDetail?: string;
+  hasSavedConfig?: boolean;
+  configuredValue?: string;
+}
+
+function QrOnboardingPanel({
+  onChanged,
+  onRestartNeeded,
+  platform,
+  setRestartNeeded,
+  showToast,
+  dmPolicyOptions,
+  connectedLabel,
+  connectedHelp,
+  applyPlatform,
+  applySuccessMessage,
+  applyFailMessage,
+  connectedDetail,
+  hasSavedConfig,
+  configuredValue,
+}: QrOnboardingPanelProps) {
+  const [setup, setSetup] = useState<
+    | (WeixinOnboardingStartResponse & { pairing_id: string; status: string; qr_payload?: string | null; expires_at: string; account_id?: string | null; user_id?: string | null; error?: string | null })
+    | (QqbotOnboardingStartResponse & { pairing_id: string; status: string; qr_payload?: string | null; expires_at: string; account_id?: string | null; user_id?: string | null; error?: string | null })
+    | null
+  >(null);
+  // Discriminated union: only one of these will be set at a time.
+  const _setup = setup as
+    | WeixinOnboardingStartResponse
+    | QqbotOnboardingStartResponse
+    | null;
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const [phase, setPhase] = useState<
+    "idle" | "starting" | "waiting" | "connected" | "applying"
+  >("idle");
+  const [dmPolicy, setDmPolicy] = useState(dmPolicyOptions[0].value);
+  const [allowedUsers, setAllowedUsers] = useState("");
+  const [homeChannel, setHomeChannel] = useState(false);
+  const [error, setError] = useState("");
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!_setup && phase === "idle" && configuredValue) {
+      setDmPolicy(configuredValue);
+    }
+  }, [configuredValue, phase, _setup]);
+
+  const updateQr = useCallback(async (payload?: string | null) => {
+    if (!payload) return;
+    try {
+      const dataUrl = await QRCode.toDataURL(payload, {
+        errorCorrectionLevel: "M",
+        margin: 3,
+        width: 240,
+      });
+      setQrDataUrl(dataUrl);
+    } catch {
+      // ignore render failure
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!_setup || phase !== "waiting") return;
+    let cancelled = false;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+
+    const poll = async () => {
+      try {
+        const status = await api.getWeixinOnboardingStatus(_setup.pairing_id);
+        if (cancelled) return;
+        setSetup(status as typeof _setup);
+        if (status.qr_payload && status.qr_payload !== _setup.qr_payload) {
+          await updateQr(status.qr_payload);
+        }
+        if (cancelled) return;
+        if (status.status === "connected") {
+          setPhase("connected");
+          setError("");
+          return;
+        }
+        if (status.status === "error") {
+          setError(status.error || "Setup failed.");
+          setSetup(null);
+          setQrDataUrl("");
+          setPhase("idle");
+          return;
+        }
+        setError("");
+        timeout = setTimeout(poll, 1500);
+      } catch (pollError) {
+        if (cancelled) return;
+        const expiresAt = Date.parse(_setup.expires_at);
+        const expired = Number.isFinite(expiresAt) && Date.now() >= expiresAt;
+        if (isTerminalQROnboardingError(pollError) || expired) {
+          setSetup(null);
+          setQrDataUrl("");
+          setPhase("idle");
+          setError("QR setup expired. Start a new setup to try again.");
+          return;
+        }
+        setError(`Still waiting. Retrying: ${pollError}`);
+        timeout = setTimeout(poll, 2000);
+      }
+    };
+
+    timeout = setTimeout(poll, 1000);
+    return () => {
+      cancelled = true;
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [phase, _setup, updateQr]);
+
+  useEffect(() => {
+    if (!_setup) return;
+    const timer = setInterval(() => setTick((v) => v + 1), 1000);
+    return () => clearInterval(timer);
+  }, [_setup]);
+
+  const resetSetup = () => {
+    setSetup(null);
+    setQrDataUrl("");
+    setPhase("idle");
+    setError("");
+  };
+
+  const start = async () => {
+    setPhase("starting");
+    setError("");
+    setQrDataUrl("");
+    try {
+      const res = applyPlatform === "weixin"
+        ? await api.startWeixinOnboarding()
+        : await api.startQqbotOnboarding();
+      setSetup(res as typeof _setup);
+      if ((res as any).qr_payload) {
+        await updateQr((res as any).qr_payload);
+      }
+      if ((res as any).status === "error") {
+        setError((res as any).error || "Setup failed.");
+        setSetup(null);
+        setPhase("idle");
+      } else {
+        setPhase((res as any).status === "connected" ? "connected" : "waiting");
+      }
+    } catch (startError) {
+      setPhase("idle");
+      setError(String(startError));
+    }
+  };
+
+  const cancel = async () => {
+    if (_setup) {
+      try {
+        const fn = applyPlatform === "weixin" ? api.cancelWeixinOnboarding : api.cancelQqbotOnboarding;
+        await fn(_setup.pairing_id);
+      } catch { /* local cleanup wins */ }
+    }
+    resetSetup();
+  };
+
+  const watchRestartOutcome = async () => {
+    for (let i = 0; i < 20; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      try {
+        const st = await api.getActionStatus("gateway-restart", 5);
+        if (st.running) continue;
+        if (st.exit_code !== 0 && st.exit_code !== null) {
+          onRestartNeeded();
+          showToast(
+            `Gateway restart failed (exit ${st.exit_code}) — restart manually`,
+            "error",
+          );
+        }
+        return;
+      } catch { /* transient */ }
+    }
+  };
+
+  const applyFn = applyPlatform === "weixin" ? api.applyWeixinOnboarding : api.applyQqbotOnboarding;
+  const applyResultType = applyPlatform as "weixin" | "qqbot";
+
+  const apply = async () => {
+    if (!_setup) return;
+    setPhase("applying");
+    setError("");
+    try {
+      const body = { dm_policy: dmPolicy, allowed_users: allowedUsers, home_channel };
+      const result = await applyFn(_setup.pairing_id, body);
+      resetSetup();
+      if ((result as any).restart_started) {
+        showToast(applySuccessMessage, "success");
+        setRestartNeeded(false);
+        setTimeout(() => void onChanged(), 4000);
+        void watchRestartOutcome();
+      } else {
+        onRestartNeeded();
+        const detail = (result as any).restart_error ? `: ${(result as any).restart_error}` : "";
+        showToast(applyFailMessage(detail), "error");
+      }
+      await onChanged();
+    } catch (applyError) {
+      setPhase("connected");
+      setError(String(applyError));
+    }
+  };
+
+  const expiresIn = useMemo(
+    () => (_setup ? formatExpiry(_setup.expires_at) : ""),
+    // tick keeps the memo fresh without recalculating on every render branch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [_setup, tick],
+  );
+
+  const setupStatusLabel = _setup?.status === "starting" ? "starting" : "waiting";
+  const setupHelp =
+    phase === "connected" || phase === "applying"
+      ? `${connectedHelp} — save and restart the gateway to finish.`
+      : "Scan the QR code with your phone to begin setup.";
+  const hasSavedAllowedUsers = Boolean(hasSavedConfig);
+
+  return (
+    <div className="rounded-sm border border-border bg-background/35 p-4">
+      <div className="grid gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            className="uppercase"
+            onClick={() => void start()}
+            disabled={phase === "starting" || phase === "waiting" || phase === "applying"}
+            prefix={phase === "starting" ? <Spinner /> : <QrCode className="h-4 w-4" />}
+          >
+            {phase === "starting" ? "Starting…" : "Scan with QR"}
+          </Button>
+          {hasSavedConfig && (
+            <span className="text-xs text-muted-foreground">
+              Existing {applyPlatform} settings are configured.
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <div className="grid gap-1.5">
+            <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
+              DM policy
+            </span>
+            <select
+              className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+              value={dmPolicy}
+              onChange={(e) => setDmPolicy(e.target.value)}
+              disabled={phase === "waiting" || phase === "applying"}
+            >
+              {dmPolicyOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+          {(dmPolicy === "allowlist" || dmPolicy === "pairing") && (
+            <div className="grid min-w-0 flex-1 gap-1.5">
+              <label htmlFor={`${applyPlatform}-allowed-users`} className="text-xs">
+                Allowed {applyPlatform === "weixin" ? "user IDs" : "OpenIDs"}
+              </label>
+              <Input
+                id={`${applyPlatform}-allowed-users`}
+                value={allowedUsers}
+                onChange={(e) => setAllowedUsers(e.target.value)}
+                disabled={phase === "waiting" || phase === "applying"}
+                placeholder={applyPlatform === "weixin" ? "comma-separated user IDs" : "comma-separated OpenIDs"}
+              />
+            </div>
+          )}
+        </div>
+
+        {_setup && (
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={homeChannel}
+              onChange={(e) => setHomeChannel(e.target.checked)}
+              disabled={phase === "waiting" || phase === "applying"}
+            />
+            Use me as the home channel
+          </label>
+        )}
+
+        {error && (
+          <div className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
+        {_setup && (
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+            <div className="grid gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {phase === "connected" || phase === "applying" ? (
+                  <Badge tone="success">Connected</Badge>
+                ) : (
+                  <Badge tone="warning">{setupStatusLabel}</Badge>
+                )}
+                <Badge tone={expiresIn === "expired" ? "destructive" : "outline"}>
+                  {expiresIn}
+                </Badge>
+              </div>
+
+              <div className="text-sm text-muted-foreground">{setupHelp}</div>
+
+              {phase === "waiting" && (
+                <div className="text-xs text-muted-foreground">
+                  {applyPlatform === "weixin"
+                    ? "Scan with WeChat. After confirmation, choose your DM policy above and save."
+                    : "Scan with QQ. After confirmation, choose your DM policy above and save."}
+                </div>
+              )}
+
+              {(phase === "connected" || phase === "applying") && (
+                <div className="grid gap-3">
+                  <div className="border border-border bg-background/45 p-3 text-sm">
+                    <div className="font-medium">{connectedLabel}</div>
+                    {connectedDetail && (
+                      <div className="mt-1 text-muted-foreground">{connectedDetail}</div>
+                    )}
+                    <ol className="mt-3 list-decimal space-y-1 pl-5 text-muted-foreground">
+                      <li>Save and restart the gateway.</li>
+                      <li>Send Hermes a message from your phone.</li>
+                    </ol>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      className="uppercase"
+                      onClick={() => void apply()}
+                      disabled={phase === "applying"}
+                      prefix={phase === "applying" ? <Spinner /> : <Save className="h-4 w-4" />}
+                    >
+                      {phase === "applying" ? "Saving…" : "Save and restart"}
+                    </Button>
+                    <Button size="sm" ghost onClick={() => void cancel()}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col items-center justify-center gap-3">
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt={`${applyPlatform} setup QR code`}
+                  className="h-60 w-60 bg-white p-2"
+                />
+              ) : phase === "connected" || phase === "applying" ? (
+                <div className="flex h-60 w-60 flex-col items-center justify-center gap-2 border border-border bg-background/50 p-4 text-center">
+                  <Badge tone="success">Linked</Badge>
+                  <span className="text-xs text-muted-foreground">Save to finish setup</span>
+                </div>
+              ) : (
+                <div className="flex h-60 w-60 flex-col items-center justify-center gap-2 border border-dashed border-border bg-background/30 p-4 text-center text-xs text-muted-foreground">
+                  <QrCode className="h-8 w-8 opacity-40" />
+                  <span>QR will appear here</span>
+                </div>
+              )}
+              <div className="flex flex-wrap items-center justify-center gap-2 text-sm">
+                <Badge tone={expiresIn === "expired" ? "destructive" : "outline"}>
+                  {expiresIn}
+                </Badge>
+                {phase === "waiting" && <Badge tone="warning">waiting</Badge>}
+              </div>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button size="sm" ghost onClick={() => void cancel()}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function ChannelsPage() {
@@ -626,6 +1039,42 @@ export default function ChannelsPage() {
                     platform={platform}
                     setRestartNeeded={setRestartNeeded}
                     showToast={showToast}
+                  />
+                )}
+                {platform.id === "weixin" && (
+                  <QrOnboardingPanel
+                    onChanged={load}
+                    onRestartNeeded={() => setRestartNeeded(true)}
+                    platform={platform}
+                    setRestartNeeded={setRestartNeeded}
+                    showToast={showToast}
+                    dmPolicyOptions={WEIXIN_DM_POLICY_OPTIONS}
+                    connectedLabel="WeChat account linked"
+                    connectedHelp="Your WeChat iLink bot is ready"
+                    applyPlatform="weixin"
+                    applySuccessMessage="WeChat saved; gateway restarting…"
+                    applyFailMessage={(detail) => `WeChat saved; gateway restart failed${detail}`}
+                    connectedDetail="iLink bot identity (…@im.bot)"
+                    hasSavedConfig={Boolean(platform.weixin_setup)}
+                    configuredValue={platform.weixin_setup?.dm_policy}
+                  />
+                )}
+                {platform.id === "qqbot" && (
+                  <QrOnboardingPanel
+                    onChanged={load}
+                    onRestartNeeded={() => setRestartNeeded(true)}
+                    platform={platform}
+                    setRestartNeeded={setRestartNeeded}
+                    showToast={showToast}
+                    dmPolicyOptions={QQBOT_DM_POLICY_OPTIONS}
+                    connectedLabel="QQ Bot linked"
+                    connectedHelp="Your QQ Bot application is ready"
+                    applyPlatform="qqbot"
+                    applySuccessMessage="QQ Bot saved; gateway restarting…"
+                    applyFailMessage={(detail) => `QQ Bot saved; gateway restart failed${detail}`}
+                    connectedDetail="QQ Bot app identity"
+                    hasSavedConfig={Boolean(platform.qqbot_setup)}
+                    configuredValue={platform.qqbot_setup?.dm_policy}
                   />
                 )}
               </CardContent>

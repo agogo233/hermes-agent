@@ -444,6 +444,50 @@ async def _api_get(
     return await asyncio.wait_for(_do(), timeout=timeout_ms / 1000)
 
 
+async def fetch_bot_qrcode(
+    session: "aiohttp.ClientSession",
+    *,
+    bot_type: str = "3",
+) -> Tuple[str, str]:
+    """Fetch a fresh iLink bot QR code payload.
+
+    Returns ``(qrcode_value, qrcode_img_content)``. Raises on HTTP or
+    malformed response so callers can distinguish transport from logic
+    failures.
+    """
+    resp = await _api_get(
+        session,
+        base_url=ILINK_BASE_URL,
+        endpoint=f"{EP_GET_BOT_QR}?bot_type={bot_type}",
+        timeout_ms=QR_TIMEOUT_MS,
+    )
+    value = str(resp.get("qrcode") or "")
+    url = str(resp.get("qrcode_img_content") or "")
+    if not value:
+        raise RuntimeError("QR response missing qrcode")
+    return value, url
+
+
+async def poll_qr_status(
+    session: "aiohttp.ClientSession",
+    *,
+    base_url: str,
+    qrcode_value: str,
+) -> Dict[str, Any]:
+    """Poll iLink for QR login status.
+
+    Returns the raw status dict (keys: ``status``, optionally
+    ``redirect_host``, ``ilink_bot_id``, ``bot_token``, etc.).
+    Raises on HTTP or parse failure.
+    """
+    return await _api_get(
+        session,
+        base_url=base_url,
+        endpoint=f"{EP_GET_QR_STATUS}?qrcode={qrcode_value}",
+        timeout_ms=QR_TIMEOUT_MS,
+    )
+
+
 async def _get_updates(
     session: "aiohttp.ClientSession",
     *,
@@ -1050,20 +1094,9 @@ async def qr_login(
 
     async with aiohttp.ClientSession(trust_env=True, connector=_make_ssl_connector()) as session:
         try:
-            qr_resp = await _api_get(
-                session,
-                base_url=ILINK_BASE_URL,
-                endpoint=f"{EP_GET_BOT_QR}?bot_type={bot_type}",
-                timeout_ms=QR_TIMEOUT_MS,
-            )
+            qrcode_value, qrcode_url = await fetch_bot_qrcode(session, bot_type=bot_type)
         except Exception as exc:
             logger.error("weixin: failed to fetch QR code: %s", exc)
-            return None
-
-        qrcode_value = str(qr_resp.get("qrcode") or "")
-        qrcode_url = str(qr_resp.get("qrcode_img_content") or "")
-        if not qrcode_value:
-            logger.error("weixin: QR response missing qrcode")
             return None
 
         # qrcode_url is the full scannable liteapp URL; qrcode_value is just the hex token
@@ -1089,11 +1122,10 @@ async def qr_login(
 
         while time.monotonic() < deadline:
             try:
-                status_resp = await _api_get(
+                status_resp = await poll_qr_status(
                     session,
                     base_url=current_base_url,
-                    endpoint=f"{EP_GET_QR_STATUS}?qrcode={qrcode_value}",
-                    timeout_ms=QR_TIMEOUT_MS,
+                    qrcode_value=qrcode_value,
                 )
             except asyncio.TimeoutError:
                 await asyncio.sleep(1)
@@ -1119,14 +1151,9 @@ async def qr_login(
                     return None
                 print(f"\n二维码已过期，正在刷新... ({refresh_count}/3)")
                 try:
-                    qr_resp = await _api_get(
-                        session,
-                        base_url=ILINK_BASE_URL,
-                        endpoint=f"{EP_GET_BOT_QR}?bot_type={bot_type}",
-                        timeout_ms=QR_TIMEOUT_MS,
+                    qrcode_value, qrcode_url = await fetch_bot_qrcode(
+                        session, bot_type=bot_type
                     )
-                    qrcode_value = str(qr_resp.get("qrcode") or "")
-                    qrcode_url = str(qr_resp.get("qrcode_img_content") or "")
                     qr_scan_data = qrcode_url if qrcode_url else qrcode_value
                     if qrcode_url:
                         print(qrcode_url)

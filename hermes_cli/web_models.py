@@ -92,6 +92,22 @@ class WhatsAppOnboardingApply(BaseModel):
     profile: Optional[str] = None
 
 
+class WeixinOnboardingApply(BaseModel):
+    """Payload for POST /api/messaging/weixin/onboarding/{id}/apply."""
+    dm_policy: str = "pairing"
+    allowed_users: Optional[str] = ""
+    home_channel: bool = False
+    profile: Optional[str] = None
+
+
+class QqbotOnboardingApply(BaseModel):
+    """Payload for POST /api/messaging/qqbot/onboarding/{id}/apply."""
+    dm_policy: str = "pairing"
+    allowed_users: Optional[str] = ""
+    home_channel: bool = False
+    profile: Optional[str] = None
+
+
 class AudioTranscriptionRequest(BaseModel):
     data_url: str
     mime_type: Optional[str] = None
