@@ -871,4 +871,213 @@ export interface Translations {
       confirmManyTitle?: string;
     };
   };
+
+  // ── System page (dashboard admin / settings) ──
+  system?: {
+    // ActionLogViewer badges
+    actionLogRunning: string;
+    actionLogDone: string;
+    actionLogExitCode: string;
+    actionLogCloseAria: string;
+    actionLogStarting: string;
+
+    // Gateway panel
+    gatewaySection: string;
+    gatewayRunning: string;
+    gatewayStopped: string;
+    gatewayStart: string;
+    gatewayRestart: string;
+    gatewayStop: string;
+    gatewayStarted: string;
+    gatewayStartedToast: string;
+    gatewayFailedToast: string;
+
+    // Curator panel
+    curatorSection: string;
+    curatorActive: string;
+    curatorPaused: string;
+    curatorDisabled: string;
+    curatorInterval: string;
+    curatorNeverRun: string;
+    curatorResume: string;
+    curatorPause: string;
+    curatorRunNow: string;
+    curatorReviewStarted: string;
+    curatorResumed: string;
+    curatorPausedToast: string;
+    curatorToggleFailed: string;
+
+    // Memory panel
+    memorySection: string;
+    memoryExternalProvider: string;
+    memoryBuiltInOnly: string;
+    memoryStatusReady: string;
+    memoryStatusNeedsSetup: string;
+    memoryStatusUnavailable: string;
+    memoryStatusMissing: string;
+    memoryChangeInPlugins: string;
+    memoryProviderSetup: string;
+    memoryConfigureInPlugins: string;
+    memoryProviderMissing: string;
+    memoryBuiltInLabel: string;
+    memoryBuiltInFiles: string;
+    memoryResetMemoryFile: string;
+    memoryResetUserFile: string;
+    memoryResetAll: string;
+    memoryResetSuccess: string;
+    memoryResetFailed: string;
+    memoryResetConfirmTitle: string;
+    memoryResetConfirmMessage: string;
+    memoryNothingReset: string;
+
+    // Credential pool
+    credentialSection: string;
+    credentialProviderLabel: string;
+    credentialProviderPlaceholder: string;
+    credentialApiKeyLabel: string;
+    credentialApiKeyPlaceholder: string;
+    credentialLabelLabel: string;
+    credentialLabelPlaceholder: string;
+    credentialAddKey: string;
+    credentialNone: string;
+    credentialRemoveAria: string;
+    credentialAdded: string;
+    credentialAddFailed: string;
+    credentialRemoved: string;
+    credentialRemoveFailed: string;
+    credentialMissingProvider: string;
+    credentialConfirmTitle: string;
+    credentialConfirmMessage: string;
+
+    // Operations
+    operationsSection: string;
+    operationsOpenConsole: string;
+    operationsDoctor: string;
+    operationsSecurityAudit: string;
+    operationsUpdateSkills: string;
+    operationsPromptSize: string;
+    operationsSupportDump: string;
+    operationsMigrateConfig: string;
+    operationStarted: string;
+    operationFailed: string;
+
+    // Backup & restore
+    backupFullLabel: string;
+    backupCreate: string;
+    backupDownload: string;
+    backupCreated: string;
+    backupFailed: string;
+    backupReady: string;
+    backupDownloadFailed: string;
+    backupRestoreUploadLabel: string;
+    backupChooseRestore: string;
+    backupNoArchiveSelected: string;
+    backupRestoreUpload: string;
+    backupRestorePathLabel: string;
+    backupRestorePath: string;
+    backupRestoreConfirmTitle: string;
+    backupRestoreConfirmMessage: string;
+    backupRestore: string;
+    backupRestoreCancel: string;
+    backupImportStarted: string;
+    backupImportFailed: string;
+
+    // Checkpoints
+    checkpointsSection: string;
+    checkpointsSessions: string;
+    checkpointsPrune: string;
+    checkpointsPruneStarted: string;
+    checkpointsPruneFailed: string;
+    checkpointsPruneConfirmTitle: string;
+    checkpointsPruneConfirmMessage: string;
+
+    // Shell hooks
+    hooksSection: string;
+    hooksNew: string;
+    hooksNewTitle: string;
+    hooksEvent: string;
+    hooksCommand: string;
+    hooksCommandPlaceholder: string;
+    hooksMatcher: string;
+    hooksMatcherPlaceholder: string;
+    hooksTimeout: string;
+    hooksTimeoutPlaceholder: string;
+    hooksApproveNow: string;
+    hooksWarning: string;
+    hooksCreating: string;
+    hooksCreate: string;
+    hooksNone: string;
+    hooksMatcherLabel: string;
+    hooksNotExecutable: string;
+    hooksAllowed: string;
+    hooksNotApproved: string;
+    hooksRemoveAria: string;
+    hooksRemoveConfirmTitle: string;
+    hooksRemoveConfirmMessage: string;
+    hooksCreated: string;
+    hooksCreateFailed: string;
+    hooksRemoved: string;
+    hooksRemoveFailed: string;
+    hooksCommandRequired: string;
+    hooksCloseAria: string;
+
+    // Update check / apply
+    updateCheckButton: string;
+    updateAvailable: string;
+    updateAvailableBehind: string;
+    updateLatest: string;
+    updateCheckFailed: string;
+    updateManagedElsewhere: string;
+    updateNotApplicable: string;
+    updateStarted: string;
+    updateFailed: string;
+    updateConfirmTitle: string;
+    updateConfirmMessageBehind: string;
+    updateConfirmMessageDefault: string;
+    updateNow: string;
+    updateWith: string;
+
+    // Portal
+    portalSection: string;
+    portalLoggedIn: string;
+    portalNotLoggedIn: string;
+    portalInferenceProvider: string;
+    portalManageSubscription: string;
+    portalToolGatewayRouting: string;
+    portalLoginHint: string;
+
+    // Debug share
+    debugTitle: string;
+    debugDescription: string;
+    debugGenerating: string;
+    debugUploading: string;
+    debugRedact: string;
+    debugUploaded: string;
+    debugRedacted: string;
+    debugNotRedacted: string;
+    debugAutoDeletesIn: string;
+    debugCopyAll: string;
+    debugCopyLinkAria: string;
+    debugUploadFailed: string;
+    debugShareFailed: string;
+    debugUploadedToast: string;
+    debugClipboardFailed: string;
+
+    // Host / system stats
+    hostSection: string;
+    statOs: string;
+    statArch: string;
+    statHost: string;
+    statPython: string;
+    statHermes: string;
+    statUpdateAvailable: string;
+    statLatest: string;
+    statCpu: string;
+    statCores: string;
+    statMemory: string;
+    statDisk: string;
+    statUptime: string;
+    statLoadAvg: string;
+    statPsutilHint: string;
+  };
 }
