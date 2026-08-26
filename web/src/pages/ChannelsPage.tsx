@@ -152,7 +152,6 @@ const QQBOT_DM_POLICY_OPTIONS: { value: string; label: string }[] = [
 interface QrOnboardingPanelProps {
   onChanged: () => Promise<void>;
   onRestartNeeded: () => void;
-  platform: MessagingPlatform;
   setRestartNeeded: (needed: boolean) => void;
   showToast: (message: string, type: "success" | "error") => void;
   dmPolicyOptions: { value: string; label: string }[];
@@ -169,7 +168,6 @@ interface QrOnboardingPanelProps {
 function QrOnboardingPanel({
   onChanged,
   onRestartNeeded,
-  platform,
   setRestartNeeded,
   showToast,
   dmPolicyOptions,
@@ -222,6 +220,8 @@ function QrOnboardingPanel({
     }
   }, []);
 
+  const statusFn = applyPlatform === "weixin" ? api.getWeixinOnboardingStatus : api.getQqbotOnboardingStatus;
+
   useEffect(() => {
     if (!_setup || phase !== "waiting") return;
     let cancelled = false;
@@ -229,7 +229,7 @@ function QrOnboardingPanel({
 
     const poll = async () => {
       try {
-        const status = await api.getWeixinOnboardingStatus(_setup.pairing_id);
+        const status = await statusFn(_setup.pairing_id);
         if (cancelled) return;
         setSetup(status as typeof _setup);
         if (status.qr_payload && status.qr_payload !== _setup.qr_payload) {
@@ -271,7 +271,7 @@ function QrOnboardingPanel({
       cancelled = true;
       if (timeout) clearTimeout(timeout);
     };
-  }, [phase, _setup, updateQr]);
+  }, [phase, _setup, statusFn, updateQr]);
 
   useEffect(() => {
     if (!_setup) return;
@@ -340,14 +340,13 @@ function QrOnboardingPanel({
   };
 
   const applyFn = applyPlatform === "weixin" ? api.applyWeixinOnboarding : api.applyQqbotOnboarding;
-  const applyResultType = applyPlatform as "weixin" | "qqbot";
 
   const apply = async () => {
     if (!_setup) return;
     setPhase("applying");
     setError("");
     try {
-      const body = { dm_policy: dmPolicy, allowed_users: allowedUsers, home_channel };
+      const body = { dm_policy: dmPolicy, allowed_users: allowedUsers, home_channel: homeChannel };
       const result = await applyFn(_setup.pairing_id, body);
       resetSetup();
       if ((result as any).restart_started) {
@@ -374,12 +373,11 @@ function QrOnboardingPanel({
     [_setup, tick],
   );
 
-  const setupStatusLabel = _setup?.status === "starting" ? "starting" : "waiting";
+  const setupStatusLabel = _setup?.status ?? "waiting";
   const setupHelp =
     phase === "connected" || phase === "applying"
       ? `${connectedHelp} — save and restart the gateway to finish.`
       : "Scan the QR code with your phone to begin setup.";
-  const hasSavedAllowedUsers = Boolean(hasSavedConfig);
 
   return (
     <div className="rounded-sm border border-border bg-background/35 p-4">
@@ -1045,7 +1043,6 @@ export default function ChannelsPage() {
                   <QrOnboardingPanel
                     onChanged={load}
                     onRestartNeeded={() => setRestartNeeded(true)}
-                    platform={platform}
                     setRestartNeeded={setRestartNeeded}
                     showToast={showToast}
                     dmPolicyOptions={WEIXIN_DM_POLICY_OPTIONS}
@@ -1063,7 +1060,6 @@ export default function ChannelsPage() {
                   <QrOnboardingPanel
                     onChanged={load}
                     onRestartNeeded={() => setRestartNeeded(true)}
-                    platform={platform}
                     setRestartNeeded={setRestartNeeded}
                     showToast={showToast}
                     dmPolicyOptions={QQBOT_DM_POLICY_OPTIONS}
