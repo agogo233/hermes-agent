@@ -43,6 +43,9 @@ export const zh: Translations = {
     expand: "展开",
     general: "通用",
     messaging: "消息平台",
+    gateway: "网关",
+    gatewayHint:
+      "消息平台、API 服务器和 Webhook 在「频道」页面配置。这些是网关级设置（代理/中继模式和全局白名单）。",
     pluginLoadFailed:
       "无法加载此插件的脚本。请检查网络请求（dashboard-plugins/…）以及服务器上的插件路径。",
     pluginNotRegistered: "插件脚本未调用 register()，或执行出错。请打开浏览器控制台查看详情。",
@@ -89,6 +92,20 @@ export const zh: Translations = {
     statusOverview: "状态概览",
     system: "系统",
     webUi: "管理面板",
+    managingProfile: "管理多Agent配置",
+    currentProfileOption: "此面板（{name}）",
+    managingProfileBanner:
+      "正在管理多Agent配置「{name}」—— 配置、密钥、技能、MCP、模型和新对话均适用于该配置。",
+    memoryOomRestartBanner:
+      "你的代理意外重启，最可能是由于内存耗尽。长会话和大量并发任务会增加内存使用。",
+    memoryCriticalBanner:
+      "你的代理内存即将耗尽，可能会重启。建议关闭空闲会话或升级其内存。",
+    memoryElevatedBanner: "你的代理内存偏低。",
+    diskCriticalBanner:
+      "你的代理磁盘即将满。新消息、记忆和设置可能无法保存。",
+    diskElevatedBanner:
+      "你的代理磁盘空间正在减少。建议清除旧会话或扩展其存储空间。",
+    dismiss: "关闭",
   },
 
   status: {
@@ -99,6 +116,7 @@ export const zh: Translations = {
     activeSessions: "活跃会话",
     connected: "已连接",
     connectedPlatforms: "已连接平台",
+    disabled: "已禁用",
     disconnected: "已断开",
     error: "错误",
     failed: "失败",
@@ -112,6 +130,9 @@ export const zh: Translations = {
     platformError: "错误",
     recentSessions: "最近会话",
     restartGateway: "重启网关",
+    restartGatewayConfirmMessage:
+      "此操作将重启 Hermes 网关进程。已连接的频道和活跃会话将在重启后重新连接。",
+    restartGatewayConfirmTitle: "重启网关？",
     restartingGateway: "正在重启网关…",
     running: "运行中",
     runningRemote: "运行中（远程）",
@@ -120,6 +141,10 @@ export const zh: Translations = {
     startedInBackground: "已在后台启动 — 请查看日志",
     stopped: "已停止",
     updateHermes: "更新 Hermes",
+    updateHermesConfirmMessage:
+      "此操作将运行 hermes update，并在完成后重启网关。活跃会话的提示词缓存在此期间不受影响。",
+    updateHermesConfirmNow: "立即更新",
+    updateHermesConfirmTitle: "更新 Hermes？",
     updatingHermes: "正在更新 Hermes…",
     waitingForOutput: "等待输出…",
   },
@@ -279,6 +304,9 @@ export const zh: Translations = {
       discord: "Discord",
       slack: "Slack",
       email: "邮件",
+      needsHomeChannel: "请先设置主页频道",
+      noneConfigured:
+        "未配置消息平台。请在「频道」页面设置一个以投递报告。",
     },
   },
 
@@ -289,7 +317,8 @@ export const zh: Translations = {
     nameRequired: "名称必填",
     nameRule:
       "仅允许小写字母、数字、下划线和短横线；首字符必须是字母或数字；最多 64 个字符。",
-    invalidName: "多Agent配置名称非法",    cloneFrom: "从配置文件克隆",
+    invalidName: "多Agent配置名称非法",
+    cloneFrom: "从配置文件克隆",
     cloneFromNone: "无（空白）",
     allProfiles: "多Agent配置列表",
     noProfiles: "暂无多Agent配置。",
@@ -312,6 +341,36 @@ export const zh: Translations = {
     created: "已创建",
     deleted: "已删除",
     renamed: "已重命名",
+    activeProfile: "活跃多Agent配置",
+    activeBadge: "活跃",
+    setActive: "设为活跃",
+    activeSet: "已设置活跃多Agent配置",
+    gatewayRunning: "网关运行中",
+    gatewayStopped: "网关已停止",
+    gatewayRunningWarning: "此多Agent配置的网关正在运行 —— 将被停止。",
+    aliasBadge: "别名",
+    description: "描述",
+    descriptionPlaceholder: "这个配置擅长什么？用于按角色路由看板任务。",
+    noDescription: "暂无描述",
+    editDescription: "编辑描述",
+    descriptionSaved: "描述已保存",
+    reviewBadge: "待审查",
+    autoGenerate: "自动生成",
+    generating: "生成中…",
+    describeFailed: "无法生成描述",
+    distribution: "分布",
+    advancedOptions: "高级选项",
+    cloneAll: "克隆所有（记忆、会话、技能、状态）",
+    noSkillsOption: "不预装内置技能",
+    descriptionOptional: "描述（可选）",
+    modelOptional: "模型（可选）",
+    modelInherit: "继承自克隆 / 默认",
+    modelLoading: "正在加载模型…",
+    modelNone: "没有已认证的提供商 —— 请先设置密钥",
+    editModel: "更改模型",
+    modelSaved: "模型已更新",
+    modelSelect: "选择一个模型",
+    actions: "操作",
   },
 
   pluginsPage: {
@@ -372,6 +431,10 @@ export const zh: Translations = {
     setupNeeded: "需要配置",
     disabledForCli: "CLI 已禁用",
     more: "还有 {count} 个",
+    profileSelector: "多Agent配置",
+    currentProfile: "当前（{name}）",
+    managingProfile:
+      "正在管理多Agent配置「{name}」—— 切换操作仅适用于该配置，不适用于此面板。",
   },
 
   config: {
@@ -492,6 +555,12 @@ export const zh: Translations = {
   theme: {
     title: "主题",
     switchTheme: "切换主题",
+    fontTitle: "字体",
+    fontDefault: "主题默认",
+    fontDefaultHint: "使用当前主题的字体",
+    fontSans: "无衬线",
+    fontSerif: "衬线",
+    fontMono: "等宽",
   },
 
   achievements: {
@@ -614,11 +683,11 @@ export const zh: Translations = {
     slug: "标识",
     slugHint: "— 小写字母、连字符，例如 atm10-server",
     confirmDoneMany:
-      "Mark {n} tasks as done? The workers' claims are released and dependent children become ready.",
+      "将 {n} 个任务标记为完成？工作者的认领将被释放，依赖的子任务将变为就绪。",
     confirmArchiveMany:
-      "Archive {n} tasks? They disappear from the default board view.",
+      "归档 {n} 个任务？它们将从默认看板视图中消失。",
     confirmBlockedMany:
-      "Mark {n} tasks as blocked? The workers' claims are released.",
+      "将 {n} 个任务标记为阻塞？工作者的认领将被释放。",
     displayName: "显示名称",
     displayNameHint: "（可选）",
     description: "描述",
@@ -647,6 +716,8 @@ export const zh: Translations = {
     createTask: "在此列创建任务",
     noTasks: "— 无任务 —",
     unassigned: "未分配",
+    needsAssignee: "需要分配负责人",
+    needsAssigneeHint: "依赖项已满足，但调度器在分配多Agent配置之前会跳过此任务。",
     untitled: "（无标题）",
     loadingDetail: "加载中…",
     addComment: "添加评论…（按回车提交）",
@@ -751,6 +822,8 @@ export const zh: Translations = {
       "归档此任务？它将从默认看板视图中消失。",
     confirmBlocked:
       "将此任务标记为阻塞？工作者将被释放。",
+    confirmScheduled:
+      "将此任务移至「已调度」？用于已知的延迟等待，而非人工阻塞。",
     completionSummary:
       "{label} 的完成摘要。这将作为任务结果存储。",
     completionSummaryRequired:
@@ -763,9 +836,33 @@ export const zh: Translations = {
     skillsPlaceholder:
       "技能（可选，逗号分隔）：翻译、github-code-review",
     noParent: "— 无父任务 —",
+    newTaskTitle: "新建任务 —— {column}",
+    taskTitleLabel: "标题",
+    assigneeLabel: "负责人",
+    assigneeLabelHint: "（留空 = 由调度器选择）",
+    skillsLabel: "技能",
+    skillsLabelHint: "（可选，逗号分隔）",
+    parentLabel: "父任务",
+    parentLabelHint: "（子任务在父任务完成前保持阻塞）",
+    create: "创建",
+    boardSettings: "设置",
+    boardSettingsTitle:
+      "看板设置 —— 名称、描述，以及新任务继承的默认项目目录",
+    boardSettingsTitleFor: "看板设置 —— {name}",
+    projectDirectoryOverrideHint:
+      "新任务会将其作为工作区默认值继承；每个任务仍可在创建对话框中覆盖。",
+    saving: "保存中…",
+    commentHint:
+      "评论会在工作者下次运行时或通过 kanban_show() 到达 —— 无需先阻塞任务。",
+    commentHintTitle:
+      "评论是与任务工作者沟通的渠道。它们会立即出现在线程中 —— 无需先阻塞任务。运行中的工作者会在下次 kanban_show() 或重生时拾取线程；阻塞仅用于你想让工作者停下并等待你的输入时。",
     workspacePathDir: "工作区路径（必填，例如 ~/projects/my-app）",
     workspacePathOptional:
       "工作区路径（可选，留空则根据负责人推导）",
+    trash: {
+      confirmTitle: "删除任务？",
+      confirmManyTitle: "删除 {n} 个任务？",
+    },
     logTruncated: "（显示最后 100 KB — 完整日志位于 ",
     logAt: "）",
   },
