@@ -45,6 +45,11 @@ export interface FontChoice {
 /** Sentinel id meaning "no override — use the active theme's font". */
 export const THEME_DEFAULT_FONT_ID = "theme";
 
+/** Default override id for fresh installs that have never chosen a font.
+ *  Deliberately distinct from the `THEME_DEFAULT_FONT_ID` sentinel so a user
+ *  can still opt back into "follow the active theme" at any time. */
+export const DEFAULT_FONT_ID = "microsoft-yahei";
+
 const GF = (family: string): string =>
   `https://fonts.googleapis.com/css2?family=${family}&display=swap`;
 
@@ -60,6 +65,12 @@ export const FONT_CHOICES: FontChoice[] = [
   { id: "system-mono", label: "System Mono", category: "mono", stack: SYSTEM_MONO },
 
   // ── Sans ────────────────────────────────────────────────────────────────
+  {
+    id: "microsoft-yahei",
+    label: "Microsoft YaHei",
+    category: "sans",
+    stack: `"Microsoft YaHei", ${SYSTEM_SANS}`,
+  },
   {
     id: "inter",
     label: "Inter",

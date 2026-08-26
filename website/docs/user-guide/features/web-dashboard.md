@@ -1181,7 +1181,7 @@ The dashboard ships with eight built-in themes and can be extended with user-def
 
 **Switch themes live** from the header bar — click the palette icon next to the language switcher. Selection persists to `config.yaml` under `dashboard.theme` and is restored on page load.
 
-**Change the font independently** from the same picker — the **Font** section below the theme list overrides the UI font of whatever theme is active. The choice persists across theme switches (`config.yaml` → `dashboard.font`); pick **Theme default** to clear it and return to the active theme's own font.
+**Change the font independently** from the same picker — the **Font** section below the theme list overrides the UI font of whatever theme is active. On a fresh install the default is **Microsoft YaHei** (falls back to the system stack where YaHei is unavailable); switch to another catalog font or pick **Theme default** to clear it and return to the active theme's own font.
 
 Built-in themes:
 

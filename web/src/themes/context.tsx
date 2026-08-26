@@ -9,6 +9,7 @@ import {
 } from "react";
 import { BUILTIN_THEMES, defaultTheme } from "./presets";
 import {
+  DEFAULT_FONT_ID,
   FONT_CHOICES,
   THEME_DEFAULT_FONT_ID,
   getFontChoice,
@@ -313,7 +314,7 @@ function injectFontStylesheet(url: string | undefined) {
 /** The active font-override id, mirrored at module scope so `applyTheme`
  *  can re-assert it after every theme switch (theme application rewrites
  *  `--theme-font-sans`, so the override has to win again afterwards). */
-let _ACTIVE_FONT_OVERRIDE: string = THEME_DEFAULT_FONT_ID;
+let _ACTIVE_FONT_OVERRIDE: string = DEFAULT_FONT_ID;
 
 /** Apply (or clear) the font override on `:root`. When a catalog font is
  *  active we override `--theme-font-sans` and `--theme-font-display` and
@@ -441,9 +442,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   /** Active font-override id (independent of theme). `THEME_DEFAULT_FONT_ID`
    *  = no override. Seeded from localStorage so it's applied flash-free. */
   const [fontId, setFontId] = useState<string>(() => {
-    if (typeof window === "undefined") return THEME_DEFAULT_FONT_ID;
+    if (typeof window === "undefined") return DEFAULT_FONT_ID;
     const stored = window.localStorage.getItem(FONT_STORAGE_KEY);
-    const valid = stored && getFontChoice(stored) ? stored : THEME_DEFAULT_FONT_ID;
+    const valid =
+      stored &&
+      (stored === THEME_DEFAULT_FONT_ID || getFontChoice(stored))
+        ? stored
+        : DEFAULT_FONT_ID;
     _ACTIVE_FONT_OVERRIDE = valid;
     return valid;
   });
@@ -525,7 +530,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       .then((resp) => {
         if (cancelled) return;
         const serverId =
-          resp?.font && getFontChoice(resp.font) ? resp.font : THEME_DEFAULT_FONT_ID;
+          resp?.font &&
+          (resp.font === THEME_DEFAULT_FONT_ID || getFontChoice(resp.font))
+            ? resp.font
+            : DEFAULT_FONT_ID;
         if (serverId !== fontId) {
           setFontId(serverId);
           if (typeof window !== "undefined") {
@@ -596,7 +604,7 @@ const ThemeContext = createContext<ThemeContextValue>({
     description: t.description,
   })),
   setTheme: () => {},
-  fontId: THEME_DEFAULT_FONT_ID,
+  fontId: DEFAULT_FONT_ID,
   fontChoices: FONT_CHOICES,
   setFont: () => {},
 });

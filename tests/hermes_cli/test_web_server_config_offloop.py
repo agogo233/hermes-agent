@@ -316,3 +316,64 @@ class TestConfigMutationLock:
             "PUT /api/dashboard/plugin-providers is not holding "
             "_CONFIG_MUTATION_LOCK around its read-modify-write span"
         )
+
+
+class TestDashboardFontDefault:
+    """The dashboard font override's default + sentinel semantics.
+
+    Regression guard: the default id is a real catalog font, while the
+    ``"theme"`` sentinel (follow active theme) must survive a round-trip
+    through PUT/GET. Before the fix the frozenset membership check had
+    "theme" silently coerced into whatever the default id was, so a user
+    could never opt back into theme-following once the default changed."""
+
+    @pytest.fixture(autouse=True)
+    def _home(self, _isolate_hermes_home):
+        pass
+
+    def _client(self):
+        try:
+            from starlette.testclient import TestClient
+        except ImportError:
+            pytest.skip("fastapi/starlette not installed")
+        from hermes_cli.web_server import app, _SESSION_HEADER_NAME, _SESSION_TOKEN
+
+        c = TestClient(app)
+        c.headers[_SESSION_HEADER_NAME] = _SESSION_TOKEN
+        return c
+
+    def test_default_font_is_microsoft_yahei_with_no_config(self):
+        """A fresh config (no dashboard.font set) returns the catalog default."""
+        resp = self._client().get("/api/dashboard/font")
+        assert resp.status_code == 200
+        assert resp.json()["font"] == "microsoft-yahei"
+
+    def test_theme_sentinel_survives_put_get_round_trip(self):
+        """Storing ``"theme"`` must round-trip verbatim — the sentinel must
+        never be coerced into the default catalog id."""
+        client = self._client()
+        assert (
+            client.put("/api/dashboard/font", json={"font": "theme"}).status_code
+            == 200
+        )
+        assert client.get("/api/dashboard/font").json()["font"] == "theme"
+
+    def test_unknown_font_id_coerces_to_default(self):
+        """An unrecognised id (stale client / corruption) coerces to default."""
+        client = self._client()
+        assert (
+            client.put(
+                "/api/dashboard/font", json={"font": "totally-fake-font"}
+            ).status_code
+            == 200
+        )
+        assert client.get("/api/dashboard/font").json()["font"] == "microsoft-yahei"
+
+    def test_valid_catalog_font_persists(self):
+        """A real catalog id is stored and returned as-is."""
+        client = self._client()
+        assert (
+            client.put("/api/dashboard/font", json={"font": "inter"}).status_code
+            == 200
+        )
+        assert client.get("/api/dashboard/font").json()["font"] == "inter"
