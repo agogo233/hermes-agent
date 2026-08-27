@@ -312,6 +312,9 @@ export interface Translations {
     deliverTo: string;
     scheduledJobs: string;
     noJobs: string;
+    noToolsets: string;
+    noSkills: string;
+    editJob: string;
     last: string;
     next: string;
     pause: string;
@@ -324,8 +327,10 @@ export interface Translations {
       slack: string;
       email: string;
       needsHomeChannel?: string;
-      noneConfigured?: string;
+      noneConfigured: string;
     };
+    saved: string;
+  };
   };
 
   // ── Plugins page ──
@@ -1403,5 +1408,14 @@ export interface Translations {
     telegramSavedRestartFailed: string;
 
     restartFailedManual: string;
+  };
+
+  // ── Hermes console modal ──
+  console?: {
+    title: string;
+    commandFailed: string;
+    confirmPrompt: string;
+    connectionError: string;
+    closeAria: string;
   };
 }

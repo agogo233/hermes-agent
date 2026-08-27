@@ -320,7 +320,7 @@ function CronAdvancedFields({
               available={availableToolsets}
               selected={form.enabled_toolsets}
               onChange={(v) => update("enabled_toolsets", v)}
-              emptyLabel="No toolsets available."
+               emptyLabel={t.cron.noToolsets ?? "No toolsets available."}
             />
           </div>
         </div>
@@ -420,7 +420,7 @@ function CronJobFormFields({
           available={availableSkills}
           selected={form.skills}
           onChange={(skills) => update("skills", skills)}
-          emptyLabel="No skills installed for this profile."
+           emptyLabel={t.cron.noSkills ?? "No skills installed for this profile."}
         />
         <p className="text-xs text-muted-foreground">
           Selected skills are loaded before the prompt runs — the cron
@@ -743,7 +743,7 @@ export default function CronPage() {
         payload,
         getJobProfile(editJob),
       );
-      showToast("Saved changes ✓", "success");
+      showToast(t.cron.saved, "success");
       setEditJob(null);
       loadJobs(selectedProfile);
     } catch (e) {
@@ -1202,8 +1202,8 @@ export default function CronPage() {
                   <Button
                     ghost
                     size="icon"
-                    title="Edit job"
-                    aria-label="Edit job"
+                    title={t.cron.editJob}
+                    aria-label={t.cron.editJob}
                     onClick={() => openEditModal(job)}
                   >
                     <Pencil />

@@ -293,6 +293,9 @@ export const zh: Translations = {
     deliverTo: "投递至",
     scheduledJobs: "已调度任务",
     noJobs: "暂无定时任务。在上方创建一个。",
+    noToolsets: "暂无可用工具集。",
+    noSkills: "当前配置下未安装技能。",
+    editJob: "编辑任务",
     last: "上次",
     next: "下次",
     pause: "暂停",
@@ -308,6 +311,7 @@ export const zh: Translations = {
       noneConfigured:
         "未配置消息平台。请在「频道」页面设置一个以投递报告。",
     },
+    saved: "已保存更改 ✓",
   },
 
   profiles: {
@@ -1418,5 +1422,14 @@ export const zh: Translations = {
     telegramSavedRestartFailed: "Telegram 已保存；网关重启失败：{detail}",
 
     restartFailedManual: "网关重启失败（退出码 {code}）—— 请手动重启",
+  },
+
+  console: {
+    title: "Hermes 控制台",
+    commandFailed: "命令执行失败。",
+    confirmPrompt: "确认？[y/N] ",
+    connectionError:
+      "控制台连接在握手前失败。请确认此仪表盘已连接到支持 /api/console 的后端。",
+    closeAria: "关闭控制台",
   },
 };

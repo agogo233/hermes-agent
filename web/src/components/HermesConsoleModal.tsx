@@ -13,6 +13,7 @@ import { useProfileScope } from "@/contexts/useProfileScope";
 import { api } from "@/lib/api";
 import { maybeReloadForLoopbackWsAuthFailure } from "@/lib/dashboard-auth-reload";
 import { cn, themedBody } from "@/lib/utils";
+import { useI18n } from "@/i18n";
 import { useTheme } from "@/themes";
 
 type ConsoleFrame =
@@ -116,6 +117,7 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
   const [consoleProfile, setConsoleProfile] = useState("current");
   const { profile } = useProfileScope();
   const { theme } = useTheme();
+  const { t } = useI18n();
 
   const redrawInput = useCallback((line = lineRef.current) => {
     const term = termRef.current;
@@ -291,7 +293,7 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
       }
 
       if (frame.type === "error") {
-        writeLine(term, `\x1b[31m${frame.message || "Command failed."}\x1b[0m`);
+        writeLine(term, `\x1b[31m${frame.message || t.console.commandFailed}\x1b[0m`);
         return;
       }
 
@@ -302,7 +304,7 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
         if (frame.message) {
           writeLine(term, `\x1b[33m${frame.message}\x1b[0m`);
         }
-        inputPromptRef.current = "Confirm? [y/N] ";
+        inputPromptRef.current = t.console.confirmPrompt;
         lineRef.current = "";
         term.write(inputPromptRef.current);
         return;
@@ -435,7 +437,7 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
           const reason = ev.reason ? ` ${ev.reason}` : "";
           const message =
             ev.code === 1006 && !hasReadyFrameRef.current
-              ? "Console connection failed before the server handshake. Check that this dashboard is connected to a backend with /api/console."
+              ? t.console.connectionError
               : `Console closed (${ev.code}).${reason}`;
           writeLine(term, `\x1b[31m${message}\x1b[0m`);
         };
@@ -507,7 +509,7 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
               id="hermes-console-title"
               className="font-mondwest text-display text-base tracking-wider"
             >
-              Hermes Console
+              {t.console.title}
             </h2>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Badge tone={statusTone}>{connectionState}</Badge>
@@ -519,7 +521,7 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
             size="icon"
             onClick={onClose}
             className="text-muted-foreground hover:text-foreground"
-            aria-label="Close console"
+            aria-label={t.console.closeAria}
           >
             <X />
           </Button>

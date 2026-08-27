@@ -297,6 +297,9 @@ export const en: Translations = {
     deliverTo: "Deliver to",
     scheduledJobs: "Scheduled Jobs",
     noJobs: "No cron jobs configured. Create one above.",
+    noToolsets: "No toolsets available.",
+    noSkills: "No skills installed for this profile.",
+    editJob: "Edit job",
     last: "Last",
     next: "Next",
     pause: "Pause",
@@ -312,6 +315,7 @@ export const en: Translations = {
       noneConfigured:
         "No messaging platforms configured. Set one up under Channels to deliver reports.",
     },
+    saved: "Saved changes ✓",
   },
 
   profiles: {
@@ -1430,5 +1434,14 @@ export const en: Translations = {
     telegramSavedRestartFailed: "Telegram saved; gateway restart failed: {detail}",
 
     restartFailedManual: "Gateway restart failed (exit {code}) — restart manually",
+  },
+
+  console: {
+    title: "Hermes Console",
+    commandFailed: "Command failed.",
+    confirmPrompt: "Confirm? [y/N] ",
+    connectionError:
+      "Console connection failed before the server handshake. Check that this dashboard is connected to a backend with /api/console.",
+    closeAria: "Close console",
   },
 };
