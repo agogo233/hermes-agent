@@ -1,6 +1,6 @@
-import type { Translations } from "./types";
+import type { TranslationOverrides } from "./define-locale";
 
-export const af: Translations = {
+export const af: TranslationOverrides = {
   common: {
     save: "Stoor",
     saving: "Besig om te stoor...",

@@ -17,6 +17,20 @@ export type Locale =
   | "hu"
   | "ar";
 
+// Fully-resolved translations: every section/key required. Produced at runtime
+// by deep-merging a locale over `en` (see define-locale.ts), so components can
+// read `t.section.key` without undefined guards even though partial locales
+// omit untranslated sections.
+export type DeepRequired<T> = T extends (...args: never[]) => string
+  ? T
+  : T extends readonly unknown[]
+    ? T
+    : T extends string
+      ? T
+      : T extends object
+        ? { [K in keyof T]-?: DeepRequired<T[K]> }
+        : T;
+
 export interface Translations {
   // ── Common ──
   common: {
@@ -327,10 +341,9 @@ export interface Translations {
       slack: string;
       email: string;
       needsHomeChannel?: string;
-      noneConfigured: string;
+      noneConfigured?: string;
     };
     saved: string;
-  };
   };
 
   // ── Plugins page ──
@@ -1228,6 +1241,7 @@ export interface Translations {
     bootstrapCommands: string;
     setupNotes: string;
     restartNote: string;
+    deleted: string;
   };
 
   // ── Channels page ──

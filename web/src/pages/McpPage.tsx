@@ -100,7 +100,7 @@ export default function McpPage() {
     return api
       .getMcpServers()
       .then((res) => setServers(res.servers))
-      .catch((e) => showToast(t.mcp.loadError, "error"));
+      .catch(() => showToast(t.mcp.loadError, "error"));
   }, [showToast, t]);
 
   const loadCatalog = useCallback(() => {
@@ -110,7 +110,7 @@ export default function McpPage() {
         setCatalog(res.entries);
         setDiagnostics(res.diagnostics);
       })
-      .catch((e) => showToast(t.mcp.catalogLoadError, "error"));
+      .catch(() => showToast(t.mcp.catalogLoadError, "error"));
   }, [showToast, t]);
 
   useEffect(() => {

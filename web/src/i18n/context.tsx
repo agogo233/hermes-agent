@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
-import type { Locale, Translations } from "./types";
+import type { Locale, Translations, DeepRequired } from "./types";
+import type { TranslationOverrides } from "./define-locale";
 import { en } from "./en";
+import { mergeTranslations } from "./define-locale";
 import { zh } from "./zh";
 import { zhHant } from "./zh-hant";
 import { ja } from "./ja";
@@ -18,7 +20,7 @@ import { ru } from "./ru";
 import { hu } from "./hu";
 import { ar } from "./ar";
 
-const TRANSLATIONS: Record<Locale, Translations> = {
+const TRANSLATIONS: Record<Locale, TranslationOverrides> = {
   en,
   zh,
   "zh-hant": zhHant,
@@ -91,13 +93,13 @@ function getInitialLocale(): Locale {
 interface I18nContextValue {
   locale: Locale;
   setLocale: (l: Locale) => void;
-  t: Translations;
+  t: DeepRequired<Translations>;
 }
 
 const I18nContext = createContext<I18nContextValue>({
   locale: "en",
   setLocale: () => {},
-  t: en,
+  t: en as DeepRequired<Translations>,
 });
 
 export function I18nProvider({ children }: { children: ReactNode }) {
@@ -121,7 +123,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const value: I18nContextValue = {
     locale,
     setLocale,
-    t: TRANSLATIONS[locale],
+    t: mergeTranslations(en, TRANSLATIONS[locale]) as DeepRequired<Translations>,
   };
 
   return (

@@ -1,6 +1,6 @@
-import type { Translations } from "./types";
+import type { TranslationOverrides } from "./define-locale";
 
-export const ga: Translations = {
+export const ga: TranslationOverrides = {
   common: {
     save: "Sábháil",
     saving: "Á shábháil...",

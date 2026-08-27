@@ -592,7 +592,7 @@ export default function ChannelsPage() {
         setEnvPath(res.env_path || "~/.hermes/.env");
         setGatewayStartCommand(res.gateway_start_command || "hermes gateway start");
       })
-      .catch((e) => showToast(tCh?.loadError ?? `Error: ${e}`));
+      .catch((e) => showToast(tCh?.loadError ?? `Error: ${e}`, "error"));
   }, [showToast, tCh]);
 
   useEffect(() => {

@@ -1152,6 +1152,7 @@ export const en: Translations = {
   },
 
   mcp: {
+    deleted: "Deleted {name}.",
     loadError: "Error: {e}",
     catalogLoadError: "Error: {e}",
     invalidServer: "Invalid MCP server",

@@ -18,6 +18,8 @@ type TranslationOverride<T> = T extends (...args: never[]) => string
 
 export type TranslationOverrides = TranslationOverride<Translations>;
 
+export { mergeTranslations };
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

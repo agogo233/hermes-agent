@@ -1,6 +1,6 @@
-import type { Translations } from "./types";
+import type { TranslationOverrides } from "./define-locale";
 
-export const zh: Translations = {
+export const zh: TranslationOverrides = {
   common: {
     save: "保存",
     saving: "保存中...",

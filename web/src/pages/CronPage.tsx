@@ -211,6 +211,7 @@ function CronAdvancedFields({
   );
   const selectedProvider = providers.find((p) => p.slug === form.provider);
   const models = selectedProvider?.models ?? [];
+  const { t } = useI18n();
 
   return (
     <details className="border border-border bg-background/30 p-3" open>

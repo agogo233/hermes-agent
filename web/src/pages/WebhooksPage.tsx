@@ -36,6 +36,7 @@ interface CreatedWebhook {
 
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
+  const { t } = useI18n();
   const handleCopy = useCallback(() => {
     void copyTextToClipboard(value).then((copied) => {
       if (!copied) return;

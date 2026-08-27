@@ -1,6 +1,6 @@
-import type { Translations } from "./types";
+import type { TranslationOverrides } from "./define-locale";
 
-export const ko: Translations = {
+export const ko: TranslationOverrides = {
   common: {
     save: "저장",
     saving: "저장 중...",

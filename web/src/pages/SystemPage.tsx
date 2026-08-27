@@ -83,11 +83,6 @@ type BackupImportTarget =
   | { kind: "upload"; file: File }
   | { kind: "path"; path: string };
 
-function backupImportLabel(target: BackupImportTarget | null): string {
-  if (!target) return "the archive";
-  return target.kind === "upload" ? target.file.name : target.path;
-}
-
 function backupFileName(path: string | null): string {
   if (!path) return "No backup created yet";
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
@@ -150,11 +145,11 @@ function ActionLogViewer({
             <span className="font-mono text-sm">{action}</span>
             {running ? (
               <Badge tone="warning">
-                {t.system.actionLogRunning}
+                {t.actionLogRunning}
               </Badge>
             ) : (
               <Badge tone={exitCode === 0 ? "success" : "destructive"}>
-                {exitCode === 0 ? t.system.actionLogDone : `${t.system.actionLogExitCode} ${exitCode}`}
+                {exitCode === 0 ? t.actionLogDone : `${t.actionLogExitCode} ${exitCode}`}
               </Badge>
             )}
           </div>
