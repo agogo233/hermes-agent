@@ -1,0 +1,309 @@
+# -*- Dockerfile.DIY — 多阶段构建优化版 hermes-agent -*-
+#
+# 阶段划分:
+#   sqlite_build — 编译修复版 SQLite (WAL-reset bug, 见 #70480)
+#   uv_source    — 仅拷贝 uv/uvx 二进制
+#   node_source  — 仅拷贝 node 26 + npm (替代已 EOL 的 Debian nodejs 20)
+#   gosu_source  — 仅拷贝 gosu 二进制
+#   builder      — npm install, playwright, web/ui-tui 构建, Python venv
+#   runtime      — 仅运行时必要产物，无构建工具链
+#
+# 安全优化（相较于原版 Dockerfile）:
+#   1. python:3.13-slim (trixie) + 固定 sha256 digest
+#   2. uv:0.11.6-python3.13-trixie 固定 digest (仅拷贝二进制)
+#   3. gosu:1.19 (稳定版) + node:26-bookworm-slim 固定 digest
+#   4. 多阶段构建：构建工具链（gcc/build-essential/Python dev headers）不进入最终镜像
+#   5. npm_config_install_links=false 以 RUN 前缀环境变量方式设置
+#   6. Playwright 浏览器安装到非卷挂载路径
+#   7. Python 依赖层缓存：pyproject.toml/uv.lock 先行 COPY，源码变更不触发重装
+#   8. runtime 补充 node/npm / ffmpeg / openssh-client / docker-cli + node_modules 权限修复
+#   9. 清理 __pycache__ / .pyc 缩减镜像体积
+#  10. 固定 SQLite 库替代 Debian 有 WAL-reset bug 的 libsqlite3.so.0 (同步上游 #70480)
+#  11. s6-overlay 改用 curl + --retry 下载 (替代 ADD，规避 CDN 抖动导致构建失败)
+# ------------------------------------------------------------------------------
+
+# ===== 阶段 0: SQLite 修复库（上游 #70480）=============================
+# Debian 13 自带 SQLite 3.46.1 含上游 WAL-reset 损坏 bug。编译固定共享库
+# 供 runtime 使用，避免依赖 trixie 不提供的 backport。
+FROM debian:13.4 AS sqlite_build
+ARG SQLITE_AUTOCONF_VERSION=3530400
+ARG SQLITE_SHA256=0e9483900e92cd5de8fd48d16bf9200145a61f7fd5be542a5ac81d8a9516eb9c
+RUN apt-get -o Acquire::Retries=3 update && \
+    apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
+        build-essential ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    (curl -fsSL --retry 1 --retry-all-errors --connect-timeout 15 --max-time 60 \
+        -o /tmp/sqlite.tar.gz \
+        "https://sqlite.org/2026/sqlite-autoconf-${SQLITE_AUTOCONF_VERSION}.tar.gz" || \
+     curl -fsSL --retry 3 --retry-all-errors --connect-timeout 15 --max-time 120 \
+        -o /tmp/sqlite.tar.gz \
+        "https://sources.buildroot.net/sqlite/sqlite-autoconf-${SQLITE_AUTOCONF_VERSION}.tar.gz") && \
+    printf '%s  %s\n' "${SQLITE_SHA256}" /tmp/sqlite.tar.gz > /tmp/sqlite.sha256 && \
+    sha256sum -c /tmp/sqlite.sha256 && \
+    tar -xzf /tmp/sqlite.tar.gz -C /tmp && \
+    cd "/tmp/sqlite-autoconf-${SQLITE_AUTOCONF_VERSION}" && \
+    CFLAGS="-O2 \
+        -DSQLITE_ENABLE_FTS3 \
+        -DSQLITE_ENABLE_FTS3_PARENTHESIS \
+        -DSQLITE_ENABLE_FTS4 \
+        -DSQLITE_ENABLE_FTS5 \
+        -DSQLITE_ENABLE_RTREE \
+        -DSQLITE_ENABLE_GEOPOLY \
+        -DSQLITE_ENABLE_COLUMN_METADATA \
+        -DSQLITE_ENABLE_UNLOCK_NOTIFY \
+        -DSQLITE_ENABLE_DBSTAT_VTAB \
+        -DSQLITE_ENABLE_DBPAGE_VTAB \
+        -DSQLITE_ENABLE_MATH_FUNCTIONS \
+        -DSQLITE_ENABLE_PREUPDATE_HOOK \
+        -DSQLITE_ENABLE_SESSION \
+        -DSQLITE_SECURE_DELETE \
+        -DSQLITE_THREADSAFE=1 \
+        -DSQLITE_MAX_VARIABLE_NUMBER=250000" \
+        ./configure --prefix=/opt/sqlite-fixed --disable-static && \
+    make -j"$(nproc)" && \
+    make install
+
+# ===== 阶段 1: 二进制来源 ==============================================
+FROM ghcr.io/astral-sh/uv:0.11.6-python3.13-trixie@sha256:b3c543b6c4f23a5f2df22866bd7857e5d304b67a564f4feab6ac22044dde719b AS uv_source
+# Node 26 source stage。Debian trixie 自带的 nodejs 是 20.x（2026-04 EOL）。
+# 从上游 node:26 镜像拷贝 node + npm（Hermes 工具链全局固定 Node 26, #4977）。
+# 用 bookworm-slim（glibc 2.36）产物，可在 trixie（glibc 2.41）runtime 上运行。
+FROM node:26-bookworm-slim@sha256:9e6f9357d371591e32ab6f2d8a26d63bdd0d17c29eee3f4f3e7e454d9634bf73 AS node_source
+FROM tianon/gosu:1.19@sha256:4f3cac1d780201437137b3a693a0bf23f28ef1b5a11262880419fd90c91ef425 AS gosu_source
+
+# ===== 阶段 2: 构建 =====================================================
+FROM python:3.13-slim@sha256:d49c1ff87eb98eac346fc250f52925f726eb913c43a92854246dd03c9692ad67 AS builder
+
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
+
+# --- 系统依赖（构建时完整版；node 不再用 apt 安装，改从 node_source 拷贝）---
+# 编译工具链 + libolm-dev：uv sync --extra matrix 的 python-olm 在无可用 wheel 时
+# 需源码编译（上游 #30399）；python:3.13-slim 不自带编译器与 libolm 头文件。
+# 工具链仅存在于 builder，不进最终镜像。
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        python3-dev \
+        libffi-dev \
+        libolm-dev \
+        curl \
+        ca-certificates \
+        procps \
+        git \
+        openssh-client \
+        ffmpeg \
+        ripgrep && \
+    rm -rf /var/lib/apt/lists/*
+
+# 在 builder 阶段创建 hermes 用户，使后续 COPY --chown 不会因用户不存在而失败
+RUN useradd -u 10000 -m -d /opt/data hermes
+
+COPY --chmod=0755 --from=gosu_source /gosu /usr/local/bin/
+COPY --chmod=0755 --from=uv_source /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
+# Node 26 + 内置 npm（npm/npx 以符号链接恢复，因为源镜像中它们是符号链接）
+COPY --chmod=0755 --from=node_source /usr/local/bin/node /usr/local/bin/
+COPY --from=node_source /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
+    ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
+WORKDIR /opt/hermes
+
+# --- 层缓存：先拷贝包清单 ---
+# hermes-ink 与 apps/shared 是 file: 工作区依赖，需整树拷贝以便 npm 解析到真实内容
+COPY package.json package-lock.json ./
+COPY web/package.json web/
+COPY ui-tui/package.json ui-tui/
+COPY ui-tui/packages/hermes-ink/ ui-tui/packages/hermes-ink/
+COPY apps/shared/ apps/shared/
+
+# npm 10+ 默认将 file: 依赖安装为 symlink（npm 9 的 install-as-copy 缺陷 #4828 已随
+# 上游 Node 26 消解），仍显式设置以防御未来回归。根 package.json 声明了全部
+# workspaces（web/ui-tui/apps/*/hermes-ink），单次根 install 即覆盖所有子包依赖。
+# playwright 浏览器构建期安装到非卷挂载路径（--only-shell），运行库依赖由 runtime 补齐。
+RUN npm_config_install_links=false npm install --prefer-offline --no-audit --fetch-retries=5 && \
+    for i in 1 2 3; do \
+        npx playwright install --with-deps chromium --only-shell && break || \
+        { [ "$i" = 3 ] && exit 1; echo "playwright install failed (attempt $i); retrying in 10s"; sleep 10; }; \
+    done && \
+    npm cache clean --force
+
+# --- Photon iMessage 侧车依赖烘焙（同步上游；镜像不可变，首连 lazy npm ci 会撞 EROFS）---
+COPY plugins/platforms/photon/sidecar/package.json \
+     plugins/platforms/photon/sidecar/package-lock.json \
+     plugins/platforms/photon/sidecar/patch-spectrum-mixed-attachments.mjs \
+     plugins/platforms/photon/sidecar/
+RUN cd plugins/platforms/photon/sidecar && \
+    npm ci --no-audit --fetch-retries=5 && \
+    npm cache clean --force
+
+# --- Python 依赖缓存层（与源码分离）---
+COPY --chown=hermes:hermes pyproject.toml uv.lock ./
+RUN touch ./README.md
+RUN uv sync --frozen --no-install-project \
+    --extra all --extra messaging --extra otlp \
+    --extra anthropic --extra bedrock --extra azure-identity \
+    --extra hindsight --extra matrix
+
+# --- 源码与前端构建 ---
+COPY --chown=hermes:hermes . .
+RUN cd web && npm run build && cd ../ui-tui && npm run build
+RUN chmod -R a+rX /opt/hermes && \
+    find /opt/hermes \( -type d -name __pycache__ -exec rm -rf {} + \) -o \
+        \( -type f -name '*.pyc' -delete \) || true
+
+# --- 链接 hermes-agent（依赖已缓存，仅需创建 editable link）---
+RUN uv pip install --no-cache-dir --no-deps -e "."
+
+# ===== 阶段 3: 运行时 ====================================================
+FROM python:3.13-slim@sha256:d49c1ff87eb98eac346fc250f52925f726eb913c43a92854246dd03c9692ad67 AS runtime
+
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
+ENV HERMES_WEB_DIST=/opt/hermes/hermes_cli/web_dist
+# 指向构建期烘焙的 TUI bundle，让 TUI 启动器走 prebuilt 快速路径（跳过 npm install）
+ENV HERMES_TUI_DIR=/opt/hermes/ui-tui
+ENV HERMES_HOME=/opt/data
+ENV HERMES_WRITE_SAFE_ROOT=/opt/data
+ENV HERMES_DISABLE_LAZY_INSTALLS=1
+# 密封的 venv 不允许 lazy install 写回镜像层；重定向到持久数据卷
+ENV HERMES_LAZY_INSTALL_TARGET=/opt/data/lazy-packages
+ENV PATH="/opt/hermes/bin:/opt/hermes/.venv/bin:/opt/data/.local/bin:${PATH}"
+
+# --- SQLite WAL-reset 修复（同步上游 #70480）---
+# 保持公开库名不变，使系统解释器与 uv venv 均解析到替换库
+COPY --from=sqlite_build /opt/sqlite-fixed/lib/libsqlite3.so.3.53.4 /usr/local/lib/
+RUN ln -sf libsqlite3.so.3.53.4 /usr/local/lib/libsqlite3.so.0 && \
+    ln -sf libsqlite3.so.3.53.4 /usr/local/lib/libsqlite3.so && \
+    printf '/usr/local/lib\n' > /etc/ld.so.conf.d/000-sqlite-fixed.conf && \
+    ldconfig && \
+    python3 -c "import sqlite3, sys; \
+v = sqlite3.sqlite_version_info; \
+sys.exit(f'linked SQLite {sqlite3.sqlite_version} still has the WAL-reset bug') if v < (3, 51, 3) else None; \
+db = sqlite3.connect(':memory:'); \
+db.execute(\"CREATE VIRTUAL TABLE docs USING fts5(content, tokenize='trigram')\"); \
+db.execute(\"INSERT INTO docs VALUES ('hermes')\"); \
+sys.exit('SQLite FTS5 trigram self-test failed') if db.execute(\"SELECT count(*) FROM docs WHERE docs MATCH 'erm'\").fetchone()[0] != 1 else None; \
+db.close()"
+
+# --- 运行时最小依赖 ---
+# iputils-ping：agent 终端 ping；libatomic1：node/chromium 部分场景依赖，
+# python:3.13-slim 默认不带。
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+        iputils-ping \
+        libatomic1 \
+        procps \
+        git \
+        ffmpeg \
+        openssh-client \
+        ripgrep \
+        docker-cli \
+        xz-utils && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN useradd -u 10000 -m -d /opt/data hermes
+
+# ---------- s6-overlay install ----------
+# 用 curl 而非 ADD：ADD 在解析期求值（无法做 ARG/TARGETARCH 替换）且不能重试，
+# CDN 抖动会废掉整次 15-45 分钟构建。curl -fsSL --retry 3 可自愈。所有包仍做校验和校验。
+ARG TARGETARCH
+ARG S6_OVERLAY_VERSION=3.2.3.0
+ARG S6_OVERLAY_NOARCH_SHA256=b720f9d9340efc8bb07528b9743813c836e4b02f8693d90241f047998b4c53cf
+ARG S6_OVERLAY_X86_64_SHA256=a93f02882c6ed46b21e7adb5c0add86154f01236c93cd82c7d682722e8840563
+ARG S6_OVERLAY_AARCH64_SHA256=0952056ff913482163cc30e35b2e944b507ba1025d78f5becbb89367bf344581
+ARG S6_OVERLAY_SYMLINKS_SHA256=a60dc5235de3ecbcf874b9c1f18d73263ab99b289b9329aa950e8729c4789f0e
+RUN set -eu; \
+    case "${TARGETARCH:-amd64}" in \
+        amd64) s6_arch="x86_64"; s6_arch_sha="${S6_OVERLAY_X86_64_SHA256}" ;; \
+        arm64) s6_arch="aarch64"; s6_arch_sha="${S6_OVERLAY_AARCH64_SHA256}" ;; \
+        *) echo "Unsupported TARGETARCH=${TARGETARCH} for s6-overlay" >&2; exit 1 ;; \
+    esac; \
+    base="https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}"; \
+    curl -fsSL --retry 3 -o /tmp/s6-overlay-noarch.tar.xz \
+        "${base}/s6-overlay-noarch.tar.xz"; \
+    curl -fsSL --retry 3 -o /tmp/s6-overlay-symlinks-noarch.tar.xz \
+        "${base}/s6-overlay-symlinks-noarch.tar.xz"; \
+    curl -fsSL --retry 3 -o /tmp/s6-overlay-arch.tar.xz \
+        "${base}/s6-overlay-${s6_arch}.tar.xz"; \
+    { \
+        printf '%s  %s\n' "${S6_OVERLAY_NOARCH_SHA256}" /tmp/s6-overlay-noarch.tar.xz; \
+        printf '%s  %s\n' "${s6_arch_sha}" /tmp/s6-overlay-arch.tar.xz; \
+        printf '%s  %s\n' "${S6_OVERLAY_SYMLINKS_SHA256}" /tmp/s6-overlay-symlinks-noarch.tar.xz; \
+    } > /tmp/s6-overlay.sha256; \
+    sha256sum -c /tmp/s6-overlay.sha256; \
+    tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz; \
+    tar -C / -Jxpf /tmp/s6-overlay-arch.tar.xz; \
+    tar -C / -Jxpf /tmp/s6-overlay-symlinks-noarch.tar.xz; \
+    rm /tmp/s6-overlay-*.tar.xz /tmp/s6-overlay.sha256
+
+# ---------- 兼容 shim ----------
+# 兼容仍引用旧 /usr/bin/tini 入口的编排模板（Hostinger 目录、NAS compose 等）。
+# 直接符号链接 /init 会把 tini 参数（如 -g）透传给 rc.init 导致启动循环（#66679）。
+COPY --chmod=0755 docker/tini-shim.sh /usr/bin/tini
+
+COPY --chmod=0755 --from=gosu_source /gosu /usr/local/bin/
+COPY --from=builder /opt/hermes /opt/hermes/
+
+RUN chmod -R a+rX /opt/hermes && \
+    chown -R hermes:hermes /opt/hermes/.venv /opt/hermes/ui-tui /opt/hermes/node_modules
+
+# --- runtime 补齐 node/npm（Node 26，从 node_source 拷贝）---
+COPY --chmod=0755 --from=node_source /usr/local/bin/node /usr/local/bin/
+COPY --from=node_source /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
+    ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
+# --- 补齐 Chromium 运行库 ---
+# builder 里的 `playwright install --with-deps` 把浏览器系统依赖装进了 builder 层；
+# 多阶段构建下这些 apt 包不会进入 runtime。此处用 playwright 自己维护的依赖清单
+# 重新安装，避免容器内 browser_navigate / 截图功能因缺 libnss3 等运行库而崩溃。
+RUN cd /opt/hermes && \
+    npx playwright install-deps chromium && \
+    rm -rf /var/lib/apt/lists/*
+
+# ---------- s6-overlay service wiring ----------
+COPY docker/s6-rc.d/ /etc/s6-overlay/s6-rc.d/
+RUN mkdir -p /etc/cont-init.d && \
+    printf '#!/command/with-contenv sh\nexec /opt/hermes/docker/stage2-hook.sh\n' \
+        > /etc/cont-init.d/01-hermes-setup && \
+    chmod +x /etc/cont-init.d/01-hermes-setup
+COPY --chmod=0755 docker/cont-init.d/015-supervise-perms /etc/cont-init.d/015-supervise-perms
+COPY --chmod=0755 docker/cont-init.d/02-reconcile-profiles /etc/cont-init.d/02-reconcile-profiles
+
+# ---------- 权限与安装方式标记 ----------
+# .install_method 标记烙在代码树（/opt/hermes）而非 $HERMES_HOME（共享数据卷可能
+# 与宿主机安装共享，烙在数据卷会误伤宿主机安装的 hermes update）。
+# 以 root 启动：stage2 hook 需要 usermod/groupmod + chown 数据卷；随后每个被监督
+# 服务经 s6-setuidgid hermes 降权。HERMES_UID 未设时服务以默认 hermes 用户(UID 10000)运行。
+USER root
+RUN mkdir -p /opt/hermes/bin && \
+    cp /opt/hermes/docker/hermes-exec-shim.sh /opt/hermes/bin/hermes && \
+    chmod 0755 /opt/hermes /opt/hermes/bin/hermes && \
+    printf 'docker\n' > /opt/hermes/.install_method
+
+# ---------- 烘焙构建期 git 修订 ----------
+# .dockerignore 排除 .git，容器内 git rev-parse 拿不到 SHA。经 HERMES_GIT_SHA
+# build-arg 写入 /opt/hermes/.hermes_build_sha，hermes_cli/build_info.py 优先读取
+# （hermes dump 与启动横幅可溯源）。arg 可选：本地构建不传则跳过，回退到 git 查询。
+ARG HERMES_GIT_SHA=
+RUN if [ -n "${HERMES_GIT_SHA}" ]; then \
+        printf '%s\n' "${HERMES_GIT_SHA}" > /opt/hermes/.hermes_build_sha; \
+    fi
+
+# ---------- docker exec 特权降级 shim + entrypoint dispatcher ----------
+# hermes-exec-shim：`docker exec <c> hermes ...` 以 root 运行时降权到 hermes 用户，
+# 避免 auth.json 等文件被写成 root 所有而让监督网关读不到。
+# entrypoint-dispatch.sh：镜像真占 PID 1 时 exec /init；被平台 init 包裹（Fly、
+# --init 等）时回退直接 bootstrap，保证前台命令可用（#38349）。
+COPY --chmod=0755 docker/entrypoint-dispatch.sh /opt/hermes/docker/entrypoint-dispatch.sh
+
+VOLUME ["/opt/data"]
+
+ENTRYPOINT ["/opt/hermes/docker/entrypoint-dispatch.sh"]
+CMD []
