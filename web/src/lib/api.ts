@@ -570,6 +570,30 @@ export const api = {
         body: JSON.stringify(body),
       },
     ),
+  getCustomEndpoints: (profile = getManagementProfile()) =>
+    fetchJSON<CustomEndpointsResponse>(appendProfileParam("/api/providers/custom-endpoints", profile)),
+  saveCustomEndpoint: (body: CustomEndpointUpdate, profile = getManagementProfile()) =>
+    fetchJSON<CustomEndpointsResponse>(appendProfileParam("/api/providers/custom-endpoints", profile), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  validateCustomEndpoint: (body: CustomEndpointUpdate) =>
+    fetchJSON<CustomEndpointValidationResponse>("/api/providers/custom-endpoints/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  activateCustomEndpoint: (id: string, profile = getManagementProfile()) =>
+    fetchJSON<{ ok: boolean; provider: string; model: string }>(
+      appendProfileParam(`/api/providers/custom-endpoints/${encodeURIComponent(id)}/activate`, profile),
+      { method: "POST" },
+    ),
+  deleteCustomEndpoint: (id: string, profile = getManagementProfile()) =>
+    fetchJSON<CustomEndpointsResponse>(
+      appendProfileParam(`/api/providers/custom-endpoints/${encodeURIComponent(id)}`, profile),
+      { method: "DELETE" },
+    ),
   saveConfig: (config: Record<string, unknown>, profile = getManagementProfile()) =>
     fetchJSON<{ ok: boolean }>(appendProfileParam("/api/config", profile), {
       method: "PUT",
@@ -2555,6 +2579,48 @@ export interface AuxiliaryTaskAssignment {
 export interface AuxiliaryModelsResponse {
   tasks: AuxiliaryTaskAssignment[];
   main: { provider: string; model: string };
+}
+
+// ── Custom endpoints ──────────────────────────────────────────────────
+
+export interface CustomEndpoint {
+  api_key_preview?: string | null;
+  base_url: string;
+  context_length?: number | null;
+  discover_models: boolean;
+  has_api_key: boolean;
+  id: string;
+  is_current?: boolean;
+  model: string;
+  models: string[];
+  name: string;
+  source?: string;
+}
+
+export interface CustomEndpointsResponse {
+  current: { base_url: string; model: string; provider: string };
+  endpoints: CustomEndpoint[];
+  id?: string;
+  ok?: boolean;
+}
+
+export interface CustomEndpointUpdate {
+  api_key?: string;
+  base_url: string;
+  context_length?: number;
+  discover_models?: boolean;
+  id?: string;
+  make_default?: boolean;
+  model: string;
+  models?: string[];
+  name: string;
+}
+
+export interface CustomEndpointValidationResponse {
+  message: string;
+  models: string[];
+  ok: boolean;
+  reachable: boolean;
 }
 
 export interface MoaModelSlot {

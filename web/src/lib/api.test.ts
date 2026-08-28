@@ -200,3 +200,70 @@ describe("api OAuth helpers", () => {
     ]);
   });
 });
+
+describe("api custom-endpoints helpers", () => {
+  function jsonFetchMock(body: unknown = { ok: true, endpoints: [] }) {
+    return vi.fn<typeof fetch>(
+      async () =>
+        new Response(JSON.stringify(body), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        }),
+    );
+  }
+
+  it("includes profile on get/save/activate/delete", async () => {
+    vi.stubGlobal("window", {});
+    const fetchMock = jsonFetchMock({ ok: true, endpoints: [] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.getCustomEndpoints("p2");
+    await api.saveCustomEndpoint({ name: "x", base_url: "http://x/v1", model: "m" }, "p2");
+    await api.activateCustomEndpoint("my-endpoint", "p2");
+    await api.deleteCustomEndpoint("my-endpoint", "p2");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/providers/custom-endpoints?profile=p2",
+      expect.anything(),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/providers/custom-endpoints?profile=p2",
+      expect.objectContaining({
+        body: JSON.stringify({ name: "x", base_url: "http://x/v1", model: "m" }),
+        method: "POST",
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "/api/providers/custom-endpoints/my-endpoint/activate?profile=p2",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "/api/providers/custom-endpoints/my-endpoint?profile=p2",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("does not attach profile to validate (stateless probe)", async () => {
+    vi.stubGlobal("window", {});
+    const fetchMock = jsonFetchMock({ ok: true, models: [] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    // Even when management profile is set, validate stays stateless.
+    await api.validateCustomEndpoint({ name: "x", base_url: "http://x/v1", model: "m" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/providers/custom-endpoints/validate",
+      expect.objectContaining({
+        body: JSON.stringify({ name: "x", base_url: "http://x/v1", model: "m" }),
+        method: "POST",
+      }),
+    );
+    // Verify no ?profile= was appended.
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).not.toContain("profile=");
+  });
+});

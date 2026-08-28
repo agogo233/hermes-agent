@@ -267,6 +267,49 @@ export interface Translations {
     startSession: string;
   };
 
+  // ── Custom endpoints (Models page) ──
+  customEndpoints: {
+    title: string;
+    subtitle: string;
+    addEndpoint: string;
+    editEndpoint: string;
+    noEndpointsDescription: string;
+    name: string;
+    namePlaceholder: string;
+    providerId: string;
+    providerIdPlaceholder: string;
+    baseUrl: string;
+    baseUrlPlaceholder: string;
+    defaultModel: string;
+    defaultModelPlaceholder: string;
+    contextLength: string;
+    contextLengthPlaceholder: string;
+    apiKey: string;
+    apiKeyPlaceholderEdit: string;
+    apiKeyPlaceholderNew: string;
+    useForNewChats: string;
+    discoverModels: string;
+    test: string;
+    save: string;
+    newEndpoint: string;
+    active: string;
+    directConfigSource: string;
+    keySet: string;
+    useAsDefault: string;
+     endpointSaved: string;
+     endpointSavedAndActivated: string;
+     endpointReached: string;
+    endpointReachable: string;
+    validationReachableMessage: string;
+    validationNoReachableMessage: string;
+    deleteEndpoint: string;
+    deleteEndpointConfirmTitle: string;
+    deleteEndpointConfirmDescription: string;
+    deleteEndpointSuccess: string;
+    idCollisionHint: string;
+    idRequiredHint: string;
+  };
+
   // ── Logs page ──
   logs: {
     title: string;
