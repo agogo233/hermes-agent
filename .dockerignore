@@ -31,6 +31,9 @@ node_modules
 # Built artifacts that are regenerated inside the image.  Excluded so local
 # rebuilds on the developer's machine don't invalidate the npm-install layer
 # that now depends on the full ui-tui/packages/hermes-ink/ tree being present.
+# hermes_cli/web_dist/ is the web build output (vite outDir); the image builds
+# it before COPY . ., so a stale local copy must not clobber it.
+hermes_cli/web_dist/
 ui-tui/dist/
 ui-tui/packages/hermes-ink/dist/
 

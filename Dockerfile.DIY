@@ -16,10 +16,12 @@
 #   5. npm_config_install_links=false 以 RUN 前缀环境变量方式设置
 #   6. Playwright 浏览器安装到非卷挂载路径
 #   7. Python 依赖层缓存：pyproject.toml/uv.lock 先行 COPY，源码变更不触发重装
-#   8. runtime 补充 node/npm / ffmpeg / openssh-client / docker-cli + node_modules 权限修复
+#   8. runtime 补充 node/npm / ffmpeg / openssh-client / docker-cli
 #   9. 清理 __pycache__ / .pyc 缩减镜像体积
 #  10. 固定 SQLite 库替代 Debian 有 WAL-reset bug 的 libsqlite3.so.0 (同步上游 #70480)
 #  11. s6-overlay 改用 curl + --retry 下载 (替代 ADD，规避 CDN 抖动导致构建失败)
+#  12. 烘焙树 COPY --link --chmod=a+rX,go-w 一次成型：无 chmod -R/chown -R 巨型层，
+#      /opt/hermes 保持 root-owned 不可写（stage2-hook "Immutable install tree" 契约）
 # ------------------------------------------------------------------------------
 
 # ===== 阶段 0: SQLite 修复库（上游 #70480）=============================
@@ -98,9 +100,6 @@ RUN apt-get update && \
         ripgrep && \
     rm -rf /var/lib/apt/lists/*
 
-# 在 builder 阶段创建 hermes 用户，使后续 COPY --chown 不会因用户不存在而失败
-RUN useradd -u 10000 -m -d /opt/data hermes
-
 COPY --chmod=0755 --from=gosu_source /gosu /usr/local/bin/
 COPY --chmod=0755 --from=uv_source /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
 # Node 26 + 内置 npm（npm/npx 以符号链接恢复，因为源镜像中它们是符号链接）
@@ -140,18 +139,29 @@ RUN cd plugins/platforms/photon/sidecar && \
     npm cache clean --force
 
 # --- Python 依赖缓存层（与源码分离）---
-COPY --chown=hermes:hermes pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock ./
 RUN touch ./README.md
 RUN uv sync --frozen --no-install-project \
     --extra all --extra messaging --extra otlp \
     --extra anthropic --extra bedrock --extra azure-identity \
     --extra hindsight --extra matrix
 
-# --- 源码与前端构建 ---
-COPY --chown=hermes:hermes . .
+# --- 前端构建（与 Python 源码独立缓存：纯 Python 改动不重跑 web/ui-tui build）---
+# 构建产物 hermes_cli/web_dist/ 与 ui-tui/dist/ 已被 .dockerignore 排除出上下文，
+# 后续 COPY . . 不会用本地陈旧产物覆盖镜像内新构建结果。
+COPY web/ web/
+COPY ui-tui/ ui-tui/
+COPY apps/shared/ apps/shared/
 RUN cd web && npm run build && cd ../ui-tui && npm run build
-RUN chmod -R a+rX /opt/hermes && \
-    find /opt/hermes \( -type d -name __pycache__ -exec rm -rf {} + \) -o \
+
+# --- 源码 ---
+# node_modules/.venv/.playwright 存活靠 .dockerignore 排除 + COPY 目录合并不删除语义；
+# --link 使本层与父层解耦，--chmod 在拷贝时烙好最终权限，省掉遍历 ~30k 文件的
+# chmod -R 整层重写（上游 #49113）。
+# a+rX,go-w：hermes 只读+可执行，root 保留写 —— 与 stage2-hook "Immutable install
+# tree" 契约一致（烘焙树刻意 root-owned 不可写，防止会话自改安装树）。
+COPY --link --chmod=a+rX,go-w . .
+RUN find /opt/hermes \( -type d -name __pycache__ -exec rm -rf {} + \) -o \
         \( -type f -name '*.pyc' -delete \) || true
 
 # --- 链接 hermes-agent（依赖已缓存，仅需创建 editable link）---
@@ -248,10 +258,11 @@ RUN set -eu; \
 COPY --chmod=0755 docker/tini-shim.sh /usr/bin/tini
 
 COPY --chmod=0755 --from=gosu_source /gosu /usr/local/bin/
-COPY --from=builder /opt/hermes /opt/hermes/
-
-RUN chmod -R a+rX /opt/hermes && \
-    chown -R hermes:hermes /opt/hermes/.venv /opt/hermes/ui-tui /opt/hermes/node_modules
+# --link + --chmod 在拷贝时一次成型：避免 chmod -R/chown -R 把整棵 ~2-3GB 的树
+# （venv + node_modules + .playwright）重写进新层、使最终镜像近乎翻倍（#49113）。
+# 烘焙树刻意保持 root-owned 且 hermes 不可写（stage2-hook "Immutable install tree"
+# 契约）；可变状态全在 $HERMES_HOME，lazy install 已重定向到 /opt/data/lazy-packages。
+COPY --link --chmod=a+rX,go-w --from=builder /opt/hermes /opt/hermes/
 
 # --- runtime 补齐 node/npm（Node 26，从 node_source 拷贝）---
 COPY --chmod=0755 --from=node_source /usr/local/bin/node /usr/local/bin/
