@@ -626,6 +626,11 @@ _reveal_timestamps: List[float] = []
 _REVEAL_MAX_PER_WINDOW = 5
 _REVEAL_WINDOW_SECONDS = 30
 
+# Rate limiter for the provider connectivity probe (POST /api/providers/test)
+_provider_test_timestamps: List[float] = []
+_PROVIDER_TEST_MAX_PER_WINDOW = 10
+_PROVIDER_TEST_WINDOW_SECONDS = 60
+
 # CORS: restrict to localhost origins only.  The web UI is intended to run
 # locally; binding to 0.0.0.0 with allow_origins=["*"] would let any website
 # read/modify config and secrets.
@@ -1775,6 +1780,7 @@ from hermes_cli.web_models import (  # noqa: F401
     _AgentPluginInstallBody,
     _PluginProvidersPutBody,
     _PluginVisibilityBody,
+    ProviderTestRequest,
 )
 
 
@@ -8818,6 +8824,135 @@ async def validate_provider_credential(body: EnvVarUpdate, request: Request):
         # 429 = key is valid but rate-limited; success = valid.
         return {"ok": True, "reachable": True, "message": ""}
     return {"ok": False, "reachable": True, "message": f"Provider returned HTTP {resp.status_code} for this key."}
+
+
+@app.post("/api/providers/test")
+async def test_provider_connectivity(body: "ProviderTestRequest", request: Request, profile: Optional[str] = None):
+    """Read-only connectivity probe for a candidate provider configuration.
+
+    Validates that the supplied ``base_url`` + ``api_key`` can list models
+    without persisting anything.  Used by the Provider config drawer to give
+    "save & test" feedback before writing to ``.env`` / ``config.yaml``.
+
+    Security:
+    - Requires the dashboard session token (no anonymous probing).
+    - Rate-limited (10/min) to prevent key enumeration.
+    - Never logs or echoes the api_key (redacted via agent/redact).
+    - Only http/https schemes; file/unix schemes rejected.
+    - Private-IP SSRF is out of scope: caller is already the local trusted
+      operator (holds X-Hermes-Session-Token); the probe is explicitly a
+      user-requested outbound connection to their chosen endpoint.
+    """
+    _require_token(request)
+
+    # Rate limit
+    now = time.time()
+    cutoff = now - _PROVIDER_TEST_WINDOW_SECONDS
+    _provider_test_timestamps[:] = [t for t in _provider_test_timestamps if t > cutoff]
+    if len(_provider_test_timestamps) >= _PROVIDER_TEST_MAX_PER_WINDOW:
+        raise HTTPException(status_code=429, detail="Too many connectivity tests. Try again shortly.")
+    _provider_test_timestamps.append(now)
+
+    import httpx
+
+    base_url = (body.base_url or "").strip().rstrip("/")
+    api_key = (body.api_key or "").strip()
+    provider = (body.provider or "").strip()
+    # Profile scoping: the SPA sends the selected management profile via the
+    # ``?profile=`` query param (see PROFILE_SCOPED_PREFIXES in web/src/lib/api.ts);
+    # ``body.profile`` is accepted too for programmatic callers.
+    scoped_profile = body.profile or profile
+
+    # If no base_url, try to resolve from provider profile (for built-in providers)
+    if not base_url and provider:
+        try:
+            with _profile_scope(scoped_profile):
+                cfg = load_config()
+            # Try providers dict first
+            providers_cfg = cfg.get("providers") if isinstance(cfg.get("providers"), dict) else {}
+            entry = providers_cfg.get(provider) if isinstance(providers_cfg, dict) else None
+            if isinstance(entry, dict):
+                base_url = str(entry.get("base_url") or entry.get("url") or entry.get("api") or "").strip().rstrip("/")
+            # Fallback to ProviderProfile default base_url
+            if not base_url:
+                try:
+                    from providers import get_provider_profile
+
+                    prof = get_provider_profile(provider)
+                    if prof and prof.base_url:
+                        base_url = prof.base_url.rstrip("/")
+                except Exception:
+                    pass
+            # Also check if this is the current main provider's base_url
+            if not base_url:
+                model_cfg = cfg.get("model") if isinstance(cfg.get("model"), dict) else {}
+                if isinstance(model_cfg, dict) and str(model_cfg.get("provider") or "").strip().lower() == provider.lower():
+                    base_url = str(model_cfg.get("base_url") or "").strip().rstrip("/")
+        except Exception:
+            pass
+
+    if not base_url:
+        return {"ok": False, "reachable": False, "message": "请填写 API 地址（Base URL）。", "models": []}
+
+    parsed = urllib.parse.urlparse(base_url)
+    if parsed.scheme not in ("http", "https"):
+        return {"ok": False, "reachable": False, "message": "Base URL 必须以 http:// 或 https:// 开头。", "models": []}
+    if not parsed.netloc:
+        return {"ok": False, "reachable": False, "message": "Base URL 格式不正确，缺少主机名。", "models": []}
+
+    # If no api_key supplied, try to resolve from .env for this provider (so "Test" works after saving)
+    if not api_key and provider:
+        try:
+            with _profile_scope(scoped_profile):
+                env = load_env()
+            # Try via ProviderProfile env_vars
+            try:
+                from providers import get_provider_profile
+
+                prof = get_provider_profile(provider)
+                if prof and prof.env_vars:
+                    for ev in prof.env_vars:
+                        if env.get(ev):
+                            api_key = env[ev]
+                            break
+            except Exception:
+                pass
+            # Try custom provider key_env
+            if not api_key:
+                with _profile_scope(scoped_profile):
+                    cfg2 = load_config()
+                providers_cfg2 = cfg2.get("providers") if isinstance(cfg2.get("providers"), dict) else {}
+                ent2 = providers_cfg2.get(provider) if isinstance(providers_cfg2, dict) else None
+                if isinstance(ent2, dict):
+                    key_env = str(ent2.get("key_env") or "").strip()
+                    if key_env and env.get(key_env):
+                        api_key = env[key_env]
+        except Exception:
+            pass
+
+    url = base_url + "/models"
+    headers = {"Accept": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    start = time.time()
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(8.0), follow_redirects=False) as client:
+            resp = await client.get(url, headers=headers)
+    except Exception:
+        return {"ok": False, "reachable": False, "message": f"无法连接到 {base_url}，请检查网络或地址是否正确。", "models": []}
+
+    latency_ms = int((time.time() - start) * 1000)
+
+    if resp.status_code in (401, 403):
+        return {"ok": False, "reachable": True, "message": "连接成功，但 API Key 被拒绝，请检查 Key 是否正确。", "models": [], "latency_ms": latency_ms}
+    if resp.status_code == 429:
+        return {"ok": True, "reachable": True, "message": "", "models": _parse_model_ids(resp), "latency_ms": latency_ms}
+    if not resp.is_success:
+        return {"ok": False, "reachable": True, "message": f"端点返回 HTTP {resp.status_code}，请检查 Base URL 是否正确。", "models": [], "latency_ms": latency_ms}
+
+    models = _parse_model_ids(resp)
+    return {"ok": True, "reachable": True, "message": "", "models": models, "latency_ms": latency_ms}
 
 
 @app.delete("/api/env")

@@ -2337,6 +2337,163 @@ class TestWebServerEndpoints:
         assert calls == [(500, 0), (500, 500)]
 
 
+class TestProviderTestEndpoint:
+    """POST /api/providers/test — read-only connectivity probe for the
+    Provider config drawer. Must never persist anything, must never echo
+    the key, and must rate-limit so it can't be used to brute-force keys."""
+
+    @pytest.fixture(autouse=True)
+    def _setup_test_client(self, monkeypatch, _isolate_hermes_home):
+        try:
+            from starlette.testclient import TestClient
+        except ImportError:
+            pytest.skip("fastapi/starlette not installed")
+
+        from hermes_cli.web_server import app, _SESSION_HEADER_NAME, _SESSION_TOKEN
+
+        self.client = TestClient(app)
+        self.client.headers[_SESSION_HEADER_NAME] = _SESSION_TOKEN
+
+    def _ok_client(self, monkeypatch, models=("gpt-oss-120b", "gpt-5")):
+        captured = {}
+
+        class _Resp:
+            status_code = 200
+            is_success = True
+
+            def json(self):
+                return {"data": [{"id": m} for m in models]}
+
+        class _Client:
+            def __init__(self, *a, **k):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+            async def get(self, url, *a, headers=None, **k):
+                captured["url"] = url
+                captured["headers"] = headers
+                return _Resp()
+
+        monkeypatch.setattr("httpx.AsyncClient", _Client)
+        return captured
+
+    def test_valid_provider_returns_models(self, monkeypatch):
+        captured = self._ok_client(monkeypatch)
+        resp = self.client.post(
+            "/api/providers/test",
+            json={
+                "provider": "acme",
+                "base_url": "https://api.acme.test/v1",
+                "api_key": "sk-secret",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["reachable"] is True
+        assert data["models"] == ["gpt-oss-120b", "gpt-5"]
+        assert captured["url"] == "https://api.acme.test/v1/models"
+        assert captured["headers"]["Authorization"] == "Bearer sk-secret"
+
+    def test_bad_key_returns_reachable_true_ok_false(self, monkeypatch):
+        class _Resp:
+            status_code = 401
+            is_success = False
+
+            def json(self):
+                return {"error": "invalid key"}
+
+        class _Client:
+            def __init__(self, *a, **k):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+            async def get(self, url, *a, headers=None, **k):
+                return _Resp()
+
+        monkeypatch.setattr("httpx.AsyncClient", _Client)
+        resp = self.client.post(
+            "/api/providers/test",
+            json={"provider": "acme", "base_url": "https://api.acme.test/v1", "api_key": "bad"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is False
+        assert data["reachable"] is True
+        assert "API Key" in data["message"]
+
+    def test_non_http_scheme_rejected(self, monkeypatch):
+        captured = self._ok_client(monkeypatch)
+        resp = self.client.post(
+            "/api/providers/test",
+            json={"provider": "acme", "base_url": "file:///etc/passwd", "api_key": "sk"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is False
+        assert data["reachable"] is False
+        # Must not have attempted a request at all.
+        assert "url" not in captured
+
+    def test_missing_base_url_hint(self, monkeypatch):
+        captured = self._ok_client(monkeypatch)
+        resp = self.client.post(
+            "/api/providers/test",
+            json={"provider": "acme", "base_url": "", "api_key": "sk"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is False
+        assert data["reachable"] is False
+        assert "url" not in captured
+
+    def test_rate_limited(self, monkeypatch):
+        self._ok_client(monkeypatch)
+        from hermes_cli import web_server
+
+        # Isolate from any probes made by earlier tests in this module.
+        web_server._provider_test_timestamps.clear()
+        # Temporarily shrink the window to 2/60s for the assertion.
+        original = web_server._PROVIDER_TEST_MAX_PER_WINDOW
+        web_server._PROVIDER_TEST_MAX_PER_WINDOW = 2
+        try:
+            for _ in range(2):
+                resp = self.client.post(
+                    "/api/providers/test",
+                    json={"provider": "acme", "base_url": "https://api.acme.test/v1", "api_key": "sk"},
+                )
+                assert resp.status_code == 200
+            resp = self.client.post(
+                "/api/providers/test",
+                json={"provider": "acme", "base_url": "https://api.acme.test/v1", "api_key": "sk"},
+            )
+            assert resp.status_code == 429
+        finally:
+            web_server._PROVIDER_TEST_MAX_PER_WINDOW = original
+            web_server._provider_test_timestamps.clear()
+
+    def test_rejects_missing_token(self, monkeypatch):
+        captured = self._ok_client(monkeypatch)
+        # Remove the auth header for this one request.
+        resp = self.client.post(
+            "/api/providers/test",
+            json={"provider": "acme", "base_url": "https://api.acme.test/v1", "api_key": "sk"},
+            headers={"X-Hermes-Session-Token": "wrong-token"},
+        )
+        assert resp.status_code == 401
+        assert "url" not in captured
+
+
 
 
 

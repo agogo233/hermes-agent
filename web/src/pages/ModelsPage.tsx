@@ -43,6 +43,7 @@ import { PluginSlot } from "@/plugins";
 import { ModelPickerDialog } from "@/components/ModelPickerDialog";
 import { ModelReloadConfirm } from "@/components/ModelReloadConfirm";
 import { CustomEndpointsPanel } from "@/components/CustomEndpointsPanel";
+import { ProviderEndpointsPanel } from "@/components/ProviderEndpointsPanel";
 
 const PERIODS = [
   { label: "7d", days: 7 },
@@ -1243,6 +1244,7 @@ export default function ModelsPage() {
   return (
     <div className="flex min-w-0 max-w-full flex-col gap-6">
       <PluginSlot name="models:top" />
+      <ProviderEndpointsPanel onChanged={onAssigned} />
       <CustomEndpointsPanel onChanged={onAssigned} />
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-2">

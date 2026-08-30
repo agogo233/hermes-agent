@@ -85,6 +85,7 @@ const PROFILE_SCOPED_PREFIXES = [
   // cancellation, and disconnect must all follow the selected management
   // profile rather than silently targeting the dashboard process's profile.
   "/api/providers/oauth",
+  "/api/providers/test",
   "/api/model/info",
   "/api/model/set",
   "/api/model/auxiliary",
@@ -580,6 +581,12 @@ export const api = {
     }),
   validateCustomEndpoint: (body: CustomEndpointUpdate) =>
     fetchJSON<CustomEndpointValidationResponse>("/api/providers/custom-endpoints/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  testProvider: (body: { provider: string; base_url: string; api_key?: string; model?: string }) =>
+    fetchJSON<{ ok: boolean; reachable: boolean; message: string; models: string[]; latency_ms?: number }>("/api/providers/test", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -2065,6 +2072,9 @@ export interface EnvVarInfo {
   channel_managed?: boolean;
   /** True when this key is set in .env but not in any catalog (user-added custom key). */
   custom?: boolean;
+  /** Provider-grouping hints derived from the unified provider catalog. */
+  provider?: string;
+  provider_label?: string;
 }
 
 export interface TelegramOnboardingStartResponse {

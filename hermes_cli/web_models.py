@@ -769,3 +769,18 @@ class _PluginProvidersPutBody(BaseModel):
 class _PluginVisibilityBody(BaseModel):
     hidden: bool
 
+
+class ProviderTestRequest(BaseModel):
+    """Payload for POST /api/providers/test — read-only connectivity probe.
+
+    Does NOT persist anything: the caller supplies the candidate credentials and
+    the endpoint returns whether they authenticate and which models are
+    advertised.  Used by the Provider config drawer before saving.
+    """
+
+    provider: str = ""
+    base_url: str = ""
+    api_key: str = ""
+    model: str = ""
+    profile: Optional[str] = None
+
