@@ -355,6 +355,10 @@ export const en: Translations = {
       slack: "Slack",
       email: "Email",
       needsHomeChannel: "set a home channel first",
+      needsHomeChannelHint:
+        "{count} platform(s) above need a home channel first — set it on the",
+      channelsLinkLabel: "Channels page",
+      hintTrailing: ".",
       noneConfigured:
         "No messaging platforms configured. Set one up under Channels to deliver reports.",
     },
@@ -1360,6 +1364,24 @@ export const en: Translations = {
     configCancelButton: "Cancel",
     configSaveButton: "Save & enable",
     configSaveButtonPending: "Saving…",
+
+    homeCardLabel: "Home",
+    homeNotSet: "No home channel",
+    homeCardSuffix: " — set for cron deliveries",
+    homeSourceEnvBadge: "from .env",
+    homeSectionTitle: "Home channel (cron delivery)",
+    homeSectionHelp:
+      "Default chat for cron deliveries and notifications. Set it here, or run /sethome in the target chat to capture its exact ID.",
+    homeChatId: "Chat ID",
+    homeChatIdPlaceholder: "chat ID (e.g. 123456789)",
+    homeName: "Name (optional)",
+    homeNamePlaceholder: "e.g. My group",
+    homeThread: "Thread ID (optional)",
+    homeThreadPlaceholder: "for threaded platforms (e.g. Telegram forums)",
+    homeEnvOverride:
+      "Set by {env} in your .env — this overrides config.yaml. Edit it there or run /sethome in the target chat.",
+    homeClear: "Clear home channel",
+    homeClearPending: "Will clear on save",
 
     cardEnable: "Enable {name}",
     cardDisable: "Disable {name}",

@@ -9438,6 +9438,105 @@ _MESSAGING_ENV_FALLBACKS: dict[str, dict[str, Any]] = {
 }
 
 
+# Platform id → the env var that overrides its config.yaml home_channel at
+# gateway load time (see gateway/config.py `_apply_env_overrides`). These are
+# the vars `/sethome`/QR onboarding persist too. A value present here means the
+# effective home channel is env-driven, not config-driven. NOTE the naming is
+# NOT uniform (matrix → MATRIX_HOME_ROOM, email → EMAIL_HOME_ADDRESS).
+_HOME_CHANNEL_ENV_MAP: dict[str, str] = {
+    "telegram": "TELEGRAM_HOME_CHANNEL",
+    "discord": "DISCORD_HOME_CHANNEL",
+    "whatsapp": "WHATSAPP_HOME_CHANNEL",
+    "whatsapp_cloud": "WHATSAPP_CLOUD_HOME_CHANNEL",
+    "slack": "SLACK_HOME_CHANNEL",
+    "signal": "SIGNAL_HOME_CHANNEL",
+    "mattermost": "MATTERMOST_HOME_CHANNEL",
+    "matrix": "MATRIX_HOME_ROOM",
+    "email": "EMAIL_HOME_ADDRESS",
+    "sms": "SMS_HOME_CHANNEL",
+    "dingtalk": "DINGTALK_HOME_CHANNEL",
+    "feishu": "FEISHU_HOME_CHANNEL",
+    "wecom": "WECOM_HOME_CHANNEL",
+    "weixin": "WEIXIN_HOME_CHANNEL",
+    "bluebubbles": "BLUEBUBBLES_HOME_CHANNEL",
+    "qqbot": "QQBOT_HOME_CHANNEL",
+    "yuanbao": "YUANBAO_HOME_CHANNEL",
+}
+
+
+def _home_channel_env_name(platform_id: str) -> str | None:
+    """Return the ``*_HOME_CHANNEL`` env var that can override *platform_id*.
+
+    Checks the built-in map first, then falls back to plugin-platform
+    ``cron_deliver_env_var`` (e.g. ``IRC_HOME_CHANNEL``).
+    """
+    if platform_id in _HOME_CHANNEL_ENV_MAP:
+        return _HOME_CHANNEL_ENV_MAP[platform_id]
+    try:
+        from gateway.platform_registry import platform_registry
+
+        for entry in platform_registry.plugin_entries():
+            if entry.name == platform_id and entry.cron_deliver_env_var:
+                return entry.cron_deliver_env_var
+    except Exception:
+        pass
+    return None
+
+
+def _raw_config_home_channel(platform_id: str) -> dict | None:
+    """Home channel as written in config.yaml (pre env-override).
+
+    Reads ``platforms.<platform_id>.home_channel`` from the loaded user config
+    (profile-scoped through the active HERMES_HOME override). Returns None when
+    absent or malformed.
+    """
+    try:
+        from hermes_cli.config import load_config
+
+        cfg = load_config()
+        platforms = cfg.get("platforms")
+        if not isinstance(platforms, dict):
+            return None
+        plat_cfg = platforms.get(platform_id)
+        if not isinstance(plat_cfg, dict):
+            return None
+        hc = plat_cfg.get("home_channel")
+        return hc if isinstance(hc, dict) else None
+    except Exception:
+        return None
+
+
+def _home_channel_source(
+    platform_id: str,
+    effective_home: dict | None,
+    *,
+    env_on_disk: dict[str, str],
+    scoped: bool = False,
+) -> str | None:
+    """Classify where the effective home channel comes from.
+
+    Returns ``"env"`` when the ``*_HOME_CHANNEL`` env override is present (or is
+    inferred because the effective value differs from config.yaml — a hidden
+    override), ``"config"`` when it lives in config.yaml, else ``None``.
+
+    The explicit env check uses the per-platform map; the comparison fallback
+    guards against a platform whose override env name is missing from
+    :data:`_HOME_CHANNEL_ENV_MAP` (so the UI never enables editing a value the
+    gateway would silently override).
+    """
+    env_key = _home_channel_env_name(platform_id)
+    if env_key:
+        env_value = env_on_disk.get(env_key) or ("" if scoped else os.getenv(env_key, ""))
+        if env_value and env_value.strip():
+            return "env"
+    raw = _raw_config_home_channel(platform_id)
+    if effective_home is not None:
+        if raw is None or raw.get("chat_id") != effective_home.get("chat_id"):
+            return "env"
+        return "config"
+    return None
+
+
 def _messaging_platform_catalog() -> tuple[dict[str, Any], ...]:
     """Build the messaging catalog from the gateway's Platform enum + plugin registry.
 
@@ -9719,12 +9818,25 @@ def _messaging_platform_payload(
             if not isinstance(plat_cfg, dict):
                 plat_cfg = {}
             enabled = bool(plat_cfg.get("enabled"))
-            hc = plat_cfg.get("home_channel")
-            home_channel = hc if isinstance(hc, dict) else None
         except Exception:
             enabled = False
-            home_channel = None
         configured = all(env_on_disk.get(key) for key in entry["required_env"])
+        # Env overrides win over config.yaml here too (mirroring the gateway's
+        # ``_apply_env_overrides``). Without this, a profile whose home came
+        # from QR onboarding (.env) would show home_channel=null while
+        # home_channel_source="env" — an inconsistent card/modal state.
+        home_channel = _raw_config_home_channel(platform_id)
+        env_key = _home_channel_env_name(platform_id)
+        env_value = (env_on_disk.get(env_key) or "").strip() if env_key else ""
+        if env_value:
+            home_channel = {
+                "platform": platform_id,
+                "chat_id": env_value,
+                "name": env_on_disk.get(f"{env_key}_NAME") or "Home",
+            }
+            thread = (env_on_disk.get(f"{env_key}_THREAD_ID") or "").strip()
+            if thread:
+                home_channel["thread_id"] = thread
     else:
         try:
             gateway_config, platform, platform_config = _gateway_platform_config(
@@ -9815,6 +9927,13 @@ def _messaging_platform_payload(
             else None
         ),
         "home_channel": home_channel,
+        "home_channel_source": _home_channel_source(
+            platform_id,
+            home_channel,
+            env_on_disk=env_on_disk,
+            scoped=scoped,
+        ),
+        "home_channel_env": _home_channel_env_name(platform_id),
         "env_vars": env_vars,
     }
     if whatsapp_setup is not None:
@@ -9824,6 +9943,25 @@ def _messaging_platform_payload(
 
 def _write_platform_enabled(platform_id: str, enabled: bool) -> None:
     write_platform_config_field(platform_id, "enabled", enabled)
+
+
+def _remove_platform_config_field(platform_id: str, field_key: str) -> None:
+    """Delete one field under ``platforms.<platform_id>`` rather than writing
+    ``null`` — a removed key is cleaner in config.yaml and indistinguishable
+    from "never set" to every reader. No-op when the platform block is absent.
+    """
+    from hermes_cli.config import load_config, save_config
+
+    config = load_config()
+    platforms = config.get("platforms")
+    if not isinstance(platforms, dict):
+        return
+    platform_config = platforms.get(platform_id)
+    if not isinstance(platform_config, dict):
+        return
+    if field_key in platform_config:
+        del platform_config[field_key]
+        save_config(config)
 
 
 _WHATSAPP_ONBOARDING_TTL_SECONDS = 600
@@ -10916,7 +11054,6 @@ async def apply_weixin_onboarding(
         if dm_policy not in _DM_POLICY_CHOICES:
             raise HTTPException(status_code=400, detail="dm_policy must be one of: pairing, open, allowlist, disabled.")
         allowed_users = str(body.allowed_users or "").replace(" ", "")
-        home_channel = bool(body.home_channel)
         effective_profile = body.profile or profile or record.profile or ""
         token = record._token
 
@@ -10935,8 +11072,12 @@ async def apply_weixin_onboarding(
             save_env_value("WEIXIN_ALLOW_ALL_USERS", "true" if dm_policy == "open" else "false")
             if allowed_users:
                 save_env_value("WEIXIN_ALLOWED_USERS", allowed_users)
-            if home_channel and record.user_id:
+            if body.home_channel is None:
+                pass  # leaving any persisted home channel untouched
+            elif body.home_channel and record.user_id:
                 save_env_value("WEIXIN_HOME_CHANNEL", record.user_id)
+            elif record.user_id:
+                remove_env_value("WEIXIN_HOME_CHANNEL")
             save_env_value("WEIXIN_ENABLED", "true")
             _write_platform_enabled("weixin", True)
     except HTTPException:
@@ -11173,7 +11314,6 @@ async def apply_qqbot_onboarding(
                 detail="dm_policy must be one of: pairing, open, allowlist.",
             )
         allowed_users = str(body.allowed_users or "").replace(" ", "")
-        home_channel = bool(body.home_channel)
         effective_profile = body.profile or profile or record.profile or ""
         client_secret = record._client_secret
 
@@ -11184,8 +11324,12 @@ async def apply_qqbot_onboarding(
             save_env_value("QQ_ALLOW_ALL_USERS", "true" if dm_policy == "open" else "false")
             if allowed_users:
                 save_env_value("QQ_ALLOWED_USERS", allowed_users)
-            if home_channel and record.user_id:
+            if body.home_channel is None:
+                pass  # leaving any persisted home channel untouched
+            elif body.home_channel and record.user_id:
                 save_env_value("QQBOT_HOME_CHANNEL", record.user_id)
+            elif record.user_id:
+                remove_env_value("QQBOT_HOME_CHANNEL")
             save_env_value("QQBOT_ENABLED", "true")
             _write_platform_enabled("qqbot", True)
     except HTTPException:
@@ -11356,18 +11500,46 @@ async def update_messaging_platform(
             if body.enabled is not None:
                 _write_platform_enabled(platform_id, body.enabled)
 
+            # Home channel: clear_home_channel wins over a set. Deleting the key
+            # (rather than writing null) keeps config.yaml clean and avoids any
+            # reader treating an explicit ``home_channel: null`` as meaningful.
+            if body.clear_home_channel:
+                _remove_platform_config_field(platform_id, "home_channel")
+            elif body.home_channel is not None:
+                chat_id = (body.home_channel.chat_id or "").strip()
+                if not chat_id:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="home_channel.chat_id is required",
+                    )
+                home = {"platform": platform_id, "chat_id": chat_id}
+                if body.home_channel.name and body.home_channel.name.strip():
+                    home["name"] = body.home_channel.name.strip()
+                if body.home_channel.thread_id and body.home_channel.thread_id.strip():
+                    home["thread_id"] = body.home_channel.thread_id.strip()
+                # Preserve /sethome's authenticated-provenance fields on a
+                # manual edit so Relay egress re-attachment keeps working.
+                existing = _raw_config_home_channel(platform_id)
+                if existing:
+                    for key in ("user_id", "scope_id"):
+                        if existing.get(key):
+                            home[key] = existing[key]
+                write_platform_config_field(platform_id, "home_channel", home)
+
     try:
         await asyncio.to_thread(_apply)
 
         # Audit trail for channel config mutations: names only, never values.
         _log.info(
             "Messaging platform updated: platform=%s profile=%s enabled=%s "
-            "env_keys=%s cleared_keys=%s",
+            "env_keys=%s cleared_keys=%s home_channel=%s",
             platform_id,
             target_profile or "current",
             body.enabled,
             sorted(body.env),
             sorted(body.clear_env),
+            "set" if body.home_channel is not None else
+            ("cleared" if body.clear_home_channel else "unchanged"),
         )
         return {"ok": True, "platform": platform_id}
     except HTTPException:

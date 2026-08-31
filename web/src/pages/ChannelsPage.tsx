@@ -171,6 +171,8 @@ interface QrOnboardingPanelProps {
   connectedDetail?: string;
   hasSavedConfig?: boolean;
   configuredValue?: string;
+  /** Whether a home channel was already adopted via a previous QR pairing. */
+  homeChannelSet?: boolean;
 }
 
 function QrOnboardingPanel({
@@ -187,6 +189,7 @@ function QrOnboardingPanel({
   connectedDetail,
   hasSavedConfig,
   configuredValue,
+  homeChannelSet,
 }: QrOnboardingPanelProps) {
   const { t } = useI18n();
   const tCh = t.channels;
@@ -215,6 +218,15 @@ function QrOnboardingPanel({
       setDmPolicy(configuredValue);
     }
   }, [configuredValue, phase, _setup]);
+
+  // Secondary-edit backfill: a previously adopted home channel is re-checked
+  // when the panel opens (before any new pairing starts). Unchecking it and
+  // saving sends home_channel=false, which clears the persisted home.
+  useEffect(() => {
+    if (!_setup && phase === "idle" && homeChannelSet) {
+      setHomeChannel(true);
+    }
+  }, [homeChannelSet, phase, _setup]);
 
   const updateQr = useCallback(async (payload?: string | null) => {
     if (!payload) return;
@@ -576,6 +588,19 @@ export default function ChannelsPage() {
   }, []);
   const editModalRef = useModalBehavior({ open: editing !== null, onClose: closeEdit });
 
+  // Home channel draft state (the Configure modal's "Home channel" section).
+  // ``homeClearPending`` becomes true when the user clears the current home
+  // channel; typing a new chat ID cancels it.
+  const [draftHomeChatId, setDraftHomeChatId] = useState("");
+  const [draftHomeName, setDraftHomeName] = useState("");
+  const [draftHomeThread, setDraftHomeThread] = useState("");
+  const [homeClearPending, setHomeClearPending] = useState(false);
+
+  // When a `*_HOME_CHANNEL` env override exists, config.yaml edits would be
+  // silently ignored by the gateway — disable the home section and explain.
+  const homeChannelDisabled = editing?.home_channel_source === "env";
+  const homeChannelEnvName = editing?.home_channel_env ?? null;
+
   // Per-card busy + restart-needed tracking
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -605,6 +630,10 @@ export default function ChannelsPage() {
       initial[v.key] = "";
     });
     setDraftEnv(initial);
+    setDraftHomeChatId(platform.home_channel?.chat_id ?? "");
+    setDraftHomeName(platform.home_channel?.name ?? "");
+    setDraftHomeThread(platform.home_channel?.thread_id ?? "");
+    setHomeClearPending(false);
     setFieldErrors({});
     setEditing(platform);
   };
@@ -617,7 +646,22 @@ export default function ChannelsPage() {
     Object.entries(draftEnv).forEach(([k, v]) => {
       if (v.trim()) env[k] = v.trim();
     });
-    if (Object.keys(env).length === 0) {
+    // Home channel: explicit clear wins; otherwise a non-empty chat ID sets
+    // (or updates) it. When an env override owns the home channel the section
+    // is disabled — never send a home write that the gateway would ignore.
+    const homeAction =
+      !homeChannelDisabled && homeClearPending
+        ? { clear_home_channel: true as const }
+        : !homeChannelDisabled && draftHomeChatId.trim()
+          ? {
+              home_channel: {
+                chat_id: draftHomeChatId.trim(),
+                name: draftHomeName.trim() || undefined,
+                thread_id: draftHomeThread.trim() || undefined,
+              },
+            }
+          : null;
+    if (Object.keys(env).length === 0 && !homeAction) {
       showToast(tCh?.saveNothingToSave ?? "Nothing to save — fill in at least one field.", "error");
       return;
     }
@@ -641,7 +685,7 @@ export default function ChannelsPage() {
     }
     setSaving(true);
     try {
-      const body: MessagingPlatformUpdate = { env, enabled: true };
+      const body: MessagingPlatformUpdate = { env, enabled: true, ...homeAction };
       await api.updateMessagingPlatform(editing.id, body);
       showToast((tCh?.saveSuccess ?? "{name} saved").replace("{name}", editing.name), "success");
       setEditing(null);
@@ -922,6 +966,90 @@ export default function ChannelsPage() {
                 </div>
               ))}
 
+              <div className="grid gap-3 border-t border-border pt-4">
+                <div className="grid gap-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                      {tCh?.homeSectionTitle ?? "Home channel (cron delivery)"}
+                    </span>
+                    {editing?.home_channel && (
+                      <span className="truncate text-xs text-muted-foreground">
+                        {editing.home_channel.chat_id}
+                        {editing.home_channel.thread_id ? `#${editing.home_channel.thread_id}` : ""}
+                      </span>
+                    )}
+                  </div>
+                  {homeChannelDisabled && (
+                    <span className="text-xs text-warning">
+                      {(tCh?.homeEnvOverride ?? "Set by {env} in your .env — this overrides config.yaml. Edit it there or run /sethome in the target chat.")
+                        .replace("{env}", homeChannelEnvName ?? "the environment")}
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {tCh?.homeSectionHelp ?? "Default chat for cron deliveries and notifications. Set it here, or run /sethome in the target chat to capture its exact ID."}
+                  </span>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor={`field-home-chat-id`}>
+                    {tCh?.homeChatId ?? "Chat ID"}
+                  </Label>
+                  <Input
+                    id={`field-home-chat-id`}
+                    value={draftHomeChatId}
+                    disabled={homeChannelDisabled}
+                    placeholder={editing?.home_channel?.chat_id ?? tCh?.homeChatIdPlaceholder ?? "chat ID (e.g. 123456789)"}
+                    onChange={(e) => {
+                      setDraftHomeChatId(e.target.value);
+                      if (e.target.value.trim()) setHomeClearPending(false);
+                    }}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor={`field-home-name`}>{tCh?.homeName ?? "Name (optional)"}</Label>
+                  <Input
+                    id={`field-home-name`}
+                    value={draftHomeName}
+                    disabled={homeChannelDisabled}
+                    placeholder={editing?.home_channel?.name || tCh?.homeNamePlaceholder ?? "e.g. My group"}
+                    onChange={(e) => setDraftHomeName(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor={`field-home-thread`}>{tCh?.homeThread ?? "Thread ID (optional)"}</Label>
+                  <Input
+                    id={`field-home-thread`}
+                    value={draftHomeThread}
+                    disabled={homeChannelDisabled}
+                    placeholder={editing?.home_channel?.thread_id ?? tCh?.homeThreadPlaceholder ?? "for threaded platforms (e.g. Telegram forums)"}
+                    onChange={(e) => setDraftHomeThread(e.target.value)}
+                  />
+                </div>
+
+                {editing?.home_channel && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      ghost
+                      size="sm"
+                      className="text-destructive"
+                      disabled={homeChannelDisabled}
+                      onClick={() => {
+                        setHomeClearPending(true);
+                        setDraftHomeChatId("");
+                        setDraftHomeName("");
+                        setDraftHomeThread("");
+                      }}
+                    >
+                      {homeClearPending
+                        ? (tCh?.homeClearPending ?? "Will clear on save")
+                        : (tCh?.homeClear ?? "Clear home channel")}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
               <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
                 <Button
                   ghost
@@ -986,6 +1114,26 @@ export default function ChannelsPage() {
                       {platform.error_message && (
                         <span className="text-xs text-destructive">
                           {platform.error_message}
+                        </span>
+                      )}
+                      {platform.home_channel ? (
+                        <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground/80">
+                            {(tCh?.homeCardLabel ?? "Home")}:{" "}
+                            {platform.home_channel.name}
+                            {platform.home_channel.name ? " · " : ""}
+                            {platform.home_channel.chat_id}
+                            {platform.home_channel.thread_id ? `#${platform.home_channel.thread_id}` : ""}
+                          </span>
+                          {platform.home_channel_source === "env" && (
+                            <Badge tone="warning">
+                              {tCh?.homeSourceEnvBadge ?? "from .env"}
+                            </Badge>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground/70">
+                          {(tCh?.homeNotSet ?? "No home channel") + (tCh?.homeCardSuffix ?? " — set for cron deliveries")}
                         </span>
                       )}
                     </div>
@@ -1066,6 +1214,7 @@ export default function ChannelsPage() {
                      connectedDetail={tCh?.wechatConnectedDetail ?? "iLink bot identity (…@im.bot)"}
                     hasSavedConfig={Boolean(platform.weixin_setup)}
                     configuredValue={platform.weixin_setup?.dm_policy}
+                    homeChannelSet={Boolean(platform.home_channel)}
                   />
                 )}
                 {platform.id === "qqbot" && (
@@ -1083,6 +1232,7 @@ export default function ChannelsPage() {
                      connectedDetail={tCh?.qqConnectedDetail ?? "QQ Bot app identity"}
                     hasSavedConfig={Boolean(platform.qqbot_setup)}
                     configuredValue={platform.qqbot_setup?.dm_policy}
+                    homeChannelSet={Boolean(platform.home_channel)}
                   />
                 )}
               </CardContent>

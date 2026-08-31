@@ -351,6 +351,9 @@ export const zh: TranslationOverrides = {
       slack: "Slack",
       email: "邮件",
       needsHomeChannel: "请先设置主页频道",
+      needsHomeChannelHint: "以上 {count} 个平台需要先设置主页频道 —— 请在",
+      channelsLinkLabel: "频道页面",
+      hintTrailing: "。",
       noneConfigured:
         "未配置消息平台。请在「频道」页面设置一个以投递报告。",
     },
@@ -1351,6 +1354,24 @@ export const zh: TranslationOverrides = {
     configCancelButton: "取消",
     configSaveButton: "保存并启用",
     configSaveButtonPending: "保存中…",
+
+    homeCardLabel: "主页频道",
+    homeNotSet: "未设置主页频道",
+    homeCardSuffix: "—— 为定时投递设置",
+    homeSourceEnvBadge: "来自 .env",
+    homeSectionTitle: "主页频道（定时投递）",
+    homeSectionHelp:
+      "定时任务投递与通知的默认聊天。可在此设置，也可在目标聊天里运行 /sethome 以自动捕获其 ID。",
+    homeChatId: "聊天 ID",
+    homeChatIdPlaceholder: "聊天 ID（例如 123456789）",
+    homeName: "名称（可选）",
+    homeNamePlaceholder: "例如：我的群组",
+    homeThread: "线程 ID（可选）",
+    homeThreadPlaceholder: "适用于线程平台（例如 Telegram 论坛）",
+    homeEnvOverride:
+      "由 .env 中的 {env} 设置 —— 它优先于 config.yaml。请在那里修改，或在目标聊天中运行 /sethome。",
+    homeClear: "清除主页频道",
+    homeClearPending: "保存后将清除",
 
     cardEnable: "启用 {name}",
     cardDisable: "禁用 {name}",

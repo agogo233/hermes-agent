@@ -62,10 +62,28 @@ class CustomEndpointUpdate(BaseModel):
     models: Optional[List[str]] = None
 
 
+class HomeChannelUpdate(BaseModel):
+    """Manual home-channel override written under ``platforms.<id>.home_channel``.
+
+    Mirrors what ``/sethome`` persists (see ``gateway.config.HomeChannel``);
+    ``chat_id`` is required, ``name`` / ``thread_id`` are optional.
+    """
+
+    chat_id: str
+    name: Optional[str] = None
+    thread_id: Optional[str] = None
+
+
 class MessagingPlatformUpdate(BaseModel):
     enabled: Optional[bool] = None
     env: Dict[str, str] = {}
     clear_env: List[str] = []
+    # Set a home channel for cron deliveries / notifications. ``clear_home_channel``
+    # wins when both are provided. A ``.env`` ``*_HOME_CHANNEL`` override takes
+    # precedence over this config.yaml write — the UI disables editing when that
+    # is the case (see ``home_channel_source`` on the read payload).
+    home_channel: Optional[HomeChannelUpdate] = None
+    clear_home_channel: bool = False
     # Explicit body profile beats the query param injected by the global
     # dashboard profile switcher (same precedence as other scoped writes).
     profile: Optional[str] = None
@@ -96,7 +114,11 @@ class WeixinOnboardingApply(BaseModel):
     """Payload for POST /api/messaging/weixin/onboarding/{id}/apply."""
     dm_policy: str = "pairing"
     allowed_users: Optional[str] = ""
-    home_channel: bool = False
+    # ``None`` means "don't touch the persisted home channel"; only an explicit
+    # True/False writes (adopt) or clears (unset) the QR-paired home. A plain
+    # ``bool = False`` default would silently unset home for callers that omit
+    # the field entirely (legacy/other clients).
+    home_channel: Optional[bool] = None
     profile: Optional[str] = None
 
 
@@ -104,7 +126,7 @@ class QqbotOnboardingApply(BaseModel):
     """Payload for POST /api/messaging/qqbot/onboarding/{id}/apply."""
     dm_policy: str = "pairing"
     allowed_users: Optional[str] = ""
-    home_channel: bool = False
+    home_channel: Optional[bool] = None
     profile: Optional[str] = None
 
 

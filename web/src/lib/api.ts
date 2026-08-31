@@ -1658,6 +1658,14 @@ export interface MessagingPlatform {
   error_message: string | null;
   updated_at: string | null;
   home_channel: { platform: string; chat_id: string; name: string; thread_id?: string } | null;
+  /**
+   * Where the effective home channel comes from: "env" when a `*_HOME_CHANNEL`
+   * .env override wins (editing in config.yaml would be silently ignored),
+   * "config" when it lives in config.yaml, null when unset.
+   */
+  home_channel_source: "env" | "config" | null;
+  /** The `*_HOME_CHANNEL` env var that would override this platform, if any. */
+  home_channel_env: string | null;
   whatsapp_setup?: {
     mode?: string;
     allowed_users_set?: boolean;
@@ -1682,10 +1690,20 @@ export interface MessagingPlatformsResponse {
   platforms: MessagingPlatform[];
 }
 
+export interface MessagingHomeChannelUpdate {
+  chat_id: string;
+  name?: string;
+  thread_id?: string;
+}
+
 export interface MessagingPlatformUpdate {
   enabled?: boolean;
   env?: Record<string, string>;
   clear_env?: string[];
+  /** Set the home channel (for cron deliveries/notifications). */
+  home_channel?: MessagingHomeChannelUpdate;
+  /** Clear the home channel; wins when combined with `home_channel`. */
+  clear_home_channel?: boolean;
 }
 
 export interface MessagingPlatformTestResult {

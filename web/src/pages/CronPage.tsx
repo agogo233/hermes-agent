@@ -4,6 +4,7 @@ import {
   createCronTriggerController,
 } from "@hermes/shared";
 import { Clock, Pause, Pencil, Play, Trash2, X, Zap } from "lucide-react";
+import { Link } from "react-router";
 import { Badge } from "@nous-research/ui/ui/components/badge";
 import { Button } from "@nous-research/ui/ui/components/button";
 import { Select, SelectOption } from "@nous-research/ui/ui/components/select";
@@ -355,6 +356,9 @@ function CronJobFormFields({
   };
   const onlyLocalAvailable =
     deliveryTargets.filter((target) => target.id !== "local").length === 0;
+  const platformsMissingHome = deliveryTargets.filter(
+    (t) => t.id !== "local" && !t.home_target_set,
+  );
 
   const deliveryOptions = selectOptions(
     form.deliver,
@@ -410,6 +414,20 @@ function CronJobFormFields({
           <p className="text-xs text-muted-foreground">
             {t.cron.delivery.noneConfigured ??
               "No messaging platforms configured. Set one up under Channels to deliver reports."}
+          </p>
+        )}
+        {!onlyLocalAvailable && platformsMissingHome.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {(t.cron.delivery.needsHomeChannelHint ??
+              "{count} platform(s) above need a home channel first — set it on the")
+              .replace("{count}", String(platformsMissingHome.length))}{" "}
+            <Link
+              to="/channels"
+              className="text-primary underline underline-offset-2 hover:opacity-80"
+            >
+              {t.cron.delivery.channelsLinkLabel ?? "Channels page"}
+            </Link>
+            {t.cron.delivery.hintTrailing ?? "."}
           </p>
         )}
       </div>
