@@ -384,6 +384,9 @@ export interface Translations {
       slack: string;
       email: string;
       needsHomeChannel?: string;
+      needsHomeChannelHint?: string;
+      channelsLinkLabel?: string;
+      hintTrailing?: string;
       noneConfigured?: string;
     };
     saved: string;
@@ -1364,6 +1367,22 @@ export interface Translations {
     configCancelButton: string;
     configSaveButton: string;
     configSaveButtonPending: string;
+
+    homeCardLabel: string;
+    homeNotSet: string;
+    homeCardSuffix: string;
+    homeSourceEnvBadge: string;
+    homeSectionTitle: string;
+    homeSectionHelp: string;
+    homeChatId: string;
+    homeChatIdPlaceholder: string;
+    homeName: string;
+    homeNamePlaceholder: string;
+    homeThread: string;
+    homeThreadPlaceholder: string;
+    homeEnvOverride: string;
+    homeClear: string;
+    homeClearPending: string;
 
     cardEnable: string;
     cardDisable: string;

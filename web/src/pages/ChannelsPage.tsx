@@ -1012,7 +1012,7 @@ export default function ChannelsPage() {
                     id={`field-home-name`}
                     value={draftHomeName}
                     disabled={homeChannelDisabled}
-                    placeholder={editing?.home_channel?.name || tCh?.homeNamePlaceholder ?? "e.g. My group"}
+                    placeholder={editing?.home_channel?.name || (tCh?.homeNamePlaceholder ?? "e.g. My group")}
                     onChange={(e) => setDraftHomeName(e.target.value)}
                   />
                 </div>
