@@ -264,7 +264,7 @@ class TestQrApplyHomeChannel:
     caller that omits the field (legacy) must be a no-op."""
 
     def _seed_connected_session(self, module_name, pairing_id):
-        from hermes_cli import web_server as ws
+        from hermes_cli.web_routers import messaging as ws
 
         session_cls = (
             ws._WeixinOnboardingSession

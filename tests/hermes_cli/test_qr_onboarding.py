@@ -11,8 +11,8 @@ import pytest
 
 
 def _make_ws(monkeypatch):
-    """Import web_server with minimal monkeypatches so imports succeed."""
-    from hermes_cli import web_server as ws
+    """Import the messaging router with minimal monkeypatches so imports succeed."""
+    from hermes_cli.web_routers import messaging as ws
     from hermes_cli import config as cfg
 
     monkeypatch.setattr(ws, "get_hermes_home", lambda: "/tmp/fake-hermes-home")
