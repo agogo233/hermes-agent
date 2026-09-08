@@ -52,6 +52,7 @@ QQ_CLIENT_SECRET=your-app-secret
 | `QQBOT_HOME_CHANNEL_NAME` | 主频道显示名称 | `Home` |
 | `QQ_ALLOWED_USERS` | 允许私聊访问的用户 OpenID 列表（逗号分隔） | 开放（所有用户） |
 | `QQ_GROUP_ALLOWED_USERS` | 允许群组访问的群组 OpenID 列表（逗号分隔） | — |
+| `QQ_GROUP_POLICY` | 群消息授权方式：`open`（任意群；发送者仍需用户级授权）、`allowlist`（仅 `QQ_GROUP_ALLOWED_USERS`）或 `disabled` | 未设置（丢弃群消息） |
 | `QQ_ALLOW_ALL_USERS` | 设为 `true` 以允许所有私聊 | `false` |
 | `QQ_PORTAL_HOST` | 覆盖 QQ portal 主机（沙盒路由设为 `sandbox.q.qq.com`） | `q.qq.com` |
 | `QQ_STT_API_KEY` | 语音转文字提供商的 API 密钥 | — |
@@ -73,7 +74,7 @@ platforms:
       dm_policy: "open"          # open | allowlist | disabled
       allow_from:
         - "user_openid_1"
-      group_policy: "open"       # open | allowlist | disabled
+      group_policy: "allowlist"  # open | allowlist | disabled（pairing 默认会拦截所有群消息）
       group_allow_from:
         - "group_openid_1"
       stt:
@@ -82,6 +83,19 @@ platforms:
         apiKey: "your-stt-key"
         model: "glm-asr"
 ```
+
+`QQ_GROUP_POLICY` / `QQ_GROUP_ALLOWED_USERS`（.env）与 `group_policy` /
+`group_allow_from`（config.yaml extra）配置同一组设置——env 桥接在设置时优先于 config.yaml。
+
+### 群授权语义
+
+群访问由两层强制执行：
+
+1. **适配器入口**（`group_policy`）——`disabled`/未设置时丢弃群消息；`allowlist` 仅放行
+   `QQ_GROUP_ALLOWED_USERS` 中的群；`open` 放行任意群。
+2. **网关授权**——即使 `open`，发送者仍需用户级授权（私聊配对、`QQ_ALLOWED_USERS`，或
+   `QQ_ALLOW_ALL_USERS`/`GATEWAY_ALLOW_ALL_USERS`）。因此 `open` 的含义是
+   "任意群 + 已授权用户"——不会隐式向所有 QQ 用户开放机器人。
 
 ## 语音消息（STT）
 
@@ -113,7 +127,8 @@ platforms:
 
 - 在 q.qq.com 验证机器人的 **intent** 是否已启用
 - 若私聊访问受限，检查 `QQ_ALLOWED_USERS`
-- 对于群组消息，确保机器人被 **@提及**（群组策略可能需要加入白名单）
+- 群消息需设置 `QQ_GROUP_POLICY`（`allowlist` + `QQ_GROUP_ALLOWED_USERS`，或 `open`）——未设置时群消息会在适配器入口被丢弃
+- `open` 群策略下，确保发送者已获用户级授权（配对、`QQ_ALLOWED_USERS` 或 `QQ_ALLOW_ALL_USERS`）
 - 检查 `QQBOT_HOME_CHANNEL` 以确认 cron/通知投递配置
 
 ### 连接错误

@@ -1464,3 +1464,56 @@ class TestWebhookEnvOverride:
             config.platforms[Platform.WEBHOOK].extra.get("secret")
             == "shared-secret"
         )
+
+
+class TestQQGroupPolicyEnvBridge:
+    """``QQ_GROUP_POLICY`` bridges into ``platforms.qqbot.extra.group_policy``.
+
+    Same semantics as the sibling platform policy bridges (WEIXIN_GROUP_POLICY):
+    a set env var overrides config.yaml extra, an unset one leaves it alone.
+    """
+
+    @staticmethod
+    def _qq_config(tmp_path, monkeypatch, *, yaml_extra: str, env: dict) -> GatewayConfig:
+        hermes_home = tmp_path / ".hermes"
+        hermes_home.mkdir()
+        (hermes_home / "config.yaml").write_text(
+            "platforms:\n"
+            "  qqbot:\n"
+            "    enabled: true\n"
+            "    extra:\n"
+            "      app_id: yaml-app\n"
+            "      client_secret: yaml-secret\n"
+            f"{yaml_extra}",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("QQ_APP_ID", "env-app")
+        monkeypatch.setenv("QQ_CLIENT_SECRET", "env-secret")
+        monkeypatch.delenv("QQ_GROUP_POLICY", raising=False)
+        for key, value in env.items():
+            monkeypatch.setenv(key, value)
+        return load_gateway_config()
+
+    def test_env_group_policy_overrides_yaml_extra(self, tmp_path, monkeypatch):
+        config = self._qq_config(
+            tmp_path, monkeypatch,
+            yaml_extra="      group_policy: disabled\n",
+            env={"QQ_GROUP_POLICY": "Allowlist "},
+        )
+        extra = config.platforms[Platform.QQBOT].extra
+        assert extra.get("group_policy") == "allowlist"
+        # Non-policy extra keys survive untouched.
+        assert extra.get("group_allow_from") is None
+
+    def test_unset_env_leaves_yaml_group_policy(self, tmp_path, monkeypatch):
+        config = self._qq_config(
+            tmp_path, monkeypatch,
+            yaml_extra="      group_policy: disabled\n",
+            env={},
+        )
+        assert config.platforms[Platform.QQBOT].extra.get("group_policy") == "disabled"
+
+    def test_env_group_policy_written_without_yaml_value(self, tmp_path, monkeypatch):
+        config = self._qq_config(tmp_path, monkeypatch, yaml_extra="", env={"QQ_GROUP_POLICY": "open"})
+        assert config.platforms[Platform.QQBOT].extra.get("group_policy") == "open"

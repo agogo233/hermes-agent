@@ -75,6 +75,10 @@ function validateMessagingEnvField(field: MessagingPlatformEnvVar, value: string
   const trimmed = value.trim();
   if (!trimmed) return null;
 
+  if (field.key === "QQ_GROUP_POLICY" && !["open", "allowlist", "disabled"].includes(trimmed.toLowerCase())) {
+    return tChannels?.validateQqGroupPolicy ?? "QQ group policy must be open, allowlist, or disabled.";
+  }
+
   if (field.key === "TELEGRAM_BOT_TOKEN" && !TELEGRAM_BOT_TOKEN_RE.test(trimmed)) {
     return tChannels?.validateTelegramBotToken ?? "Paste the complete token from @BotFather.";
   }
@@ -157,6 +161,15 @@ const QQBOT_DM_POLICY_OPTIONS: { value: string; labelKey: string }[] = [
   { value: "allowlist", labelKey: "dmAllowlisted" },
 ];
 
+// QQ groups have no pairing flow — the adapter drops group messages under the
+// default pairing policy, so the group section offers open/allowlist/disabled
+// (defaults to the safe "disabled").
+const QQBOT_GROUP_POLICY_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: "disabled", labelKey: "groupDisabled" },
+  { value: "allowlist", labelKey: "groupAllowlisted" },
+  { value: "open", labelKey: "groupOpen" },
+];
+
 interface QrOnboardingPanelProps {
   onChanged: () => Promise<void>;
   onRestartNeeded: () => void;
@@ -173,6 +186,10 @@ interface QrOnboardingPanelProps {
   configuredValue?: string;
   /** Whether a home channel was already adopted via a previous QR pairing. */
   homeChannelSet?: boolean;
+  /** Group policy options — rendered only when provided (QQ Bot only). */
+  groupPolicyOptions?: { value: string; labelKey: string }[];
+  /** Saved group policy ("" when unset) for backfill when the panel opens. */
+  groupConfiguredValue?: string;
 }
 
 function QrOnboardingPanel({
@@ -190,6 +207,8 @@ function QrOnboardingPanel({
   hasSavedConfig,
   configuredValue,
   homeChannelSet,
+  groupPolicyOptions,
+  groupConfiguredValue,
 }: QrOnboardingPanelProps) {
   const { t } = useI18n();
   const tCh = t.channels;
@@ -209,6 +228,10 @@ function QrOnboardingPanel({
   >("idle");
   const [dmPolicy, setDmPolicy] = useState(dmPolicyOptions[0].value);
   const [allowedUsers, setAllowedUsers] = useState("");
+  // "disabled" is the safe default: unset/pairing drop group messages at the
+  // adapter, and an empty value would be rejected by the apply endpoint.
+  const [groupPolicy, setGroupPolicy] = useState("disabled");
+  const [groupAllowedUsers, setGroupAllowedUsers] = useState("");
   const [homeChannel, setHomeChannel] = useState(false);
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
@@ -218,6 +241,16 @@ function QrOnboardingPanel({
       setDmPolicy(configuredValue);
     }
   }, [configuredValue, phase, _setup]);
+
+  // Group backfill mirrors the DM effect: refresh the saved (or safe-default)
+  // policy while the panel sits idle; selections made during a live pairing
+  // session are never clobbered.
+  useEffect(() => {
+    if (!_setup && phase === "idle" && groupPolicyOptions) {
+      const saved = groupConfiguredValue ?? "";
+      setGroupPolicy(groupPolicyOptions.some((opt) => opt.value === saved) ? saved : "disabled");
+    }
+  }, [groupConfiguredValue, phase, _setup, groupPolicyOptions]);
 
   // Secondary-edit backfill: a previously adopted home channel is re-checked
   // when the panel opens (before any new pairing starts). Unchecking it and
@@ -368,7 +401,14 @@ function QrOnboardingPanel({
     setPhase("applying");
     setError("");
     try {
-      const body = { dm_policy: dmPolicy, allowed_users: allowedUsers, home_channel: homeChannel };
+      const body = {
+        dm_policy: dmPolicy,
+        allowed_users: allowedUsers,
+        ...(groupPolicyOptions
+          ? { group_policy: groupPolicy, group_allowed_users: groupAllowedUsers }
+          : {}),
+        home_channel: homeChannel,
+      };
       const result = await applyFn(_setup.pairing_id, body);
       resetSetup();
       if ((result as any).restart_started) {
@@ -455,6 +495,45 @@ function QrOnboardingPanel({
             </div>
           )}
         </div>
+
+        {groupPolicyOptions && (
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+            <div className="grid gap-1.5">
+              <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                {tCh?.groupPolicy ?? "Group policy"}
+              </span>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                value={groupPolicy}
+                onChange={(e) => setGroupPolicy(e.target.value)}
+                disabled={phase === "waiting" || phase === "applying"}
+              >
+                {groupPolicyOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{(tCh as Record<string, string | undefined>)?.[opt.labelKey] ?? opt.value}</option>
+                ))}
+              </select>
+            </div>
+            {groupPolicy === "allowlist" && (
+              <div className="grid min-w-0 flex-1 gap-1.5">
+                <label htmlFor={`${applyPlatform}-group-allowed-users`} className="text-xs">
+                  {tCh?.qrAllowedGroupOpenIds ?? "Allowed group OpenIDs"}
+                </label>
+                <Input
+                  id={`${applyPlatform}-group-allowed-users`}
+                  value={groupAllowedUsers}
+                  onChange={(e) => setGroupAllowedUsers(e.target.value)}
+                  disabled={phase === "waiting" || phase === "applying"}
+                  placeholder={tCh?.qrPlaceholderGroupOpenIds ?? "comma-separated group OpenIDs"}
+                />
+              </div>
+            )}
+          </div>
+        )}
+        {groupPolicyOptions && groupPolicy === "open" && (
+          <span className="text-xs text-muted-foreground">
+            {tCh?.groupOpenHelp ?? "Senders in open groups still need user-level authorization (pairing, allowlist, or allow-all)."}
+          </span>
+        )}
 
         {_setup && (
           <label className="flex items-center gap-2 text-sm">
@@ -1233,6 +1312,8 @@ export default function ChannelsPage() {
                     hasSavedConfig={Boolean(platform.qqbot_setup)}
                     configuredValue={platform.qqbot_setup?.dm_policy}
                     homeChannelSet={Boolean(platform.home_channel)}
+                    groupPolicyOptions={QQBOT_GROUP_POLICY_OPTIONS}
+                    groupConfiguredValue={platform.qqbot_setup?.group_policy ?? ""}
                   />
                 )}
               </CardContent>

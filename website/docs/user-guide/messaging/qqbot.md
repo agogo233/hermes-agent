@@ -52,6 +52,7 @@ QQ_CLIENT_SECRET=your-app-secret
 | `QQBOT_HOME_CHANNEL_NAME` | Display name for home channel | `Home` |
 | `QQ_ALLOWED_USERS` | Comma-separated user OpenIDs for DM access | open (all users) |
 | `QQ_GROUP_ALLOWED_USERS` | Comma-separated group OpenIDs for group access | — |
+| `QQ_GROUP_POLICY` | How group messages are authorized: `open` (any group; senders still need user-level authorization), `allowlist` (only `QQ_GROUP_ALLOWED_USERS`), or `disabled` | unset (group messages dropped) |
 | `QQ_ALLOW_ALL_USERS` | Set to `true` to allow all DMs | `false` |
 | `QQ_PORTAL_HOST` | Override the QQ portal host (set to `sandbox.q.qq.com` for sandbox routing) | `q.qq.com` |
 | `QQ_STT_API_KEY` | API key for voice-to-text provider | — |
@@ -73,7 +74,7 @@ platforms:
       dm_policy: "open"          # open | allowlist | disabled
       allow_from:
         - "user_openid_1"
-      group_policy: "open"       # open | allowlist | disabled
+      group_policy: "allowlist"  # open | allowlist | disabled (pairing defaults to blocking groups)
       group_allow_from:
         - "group_openid_1"
       stt:
@@ -82,6 +83,22 @@ platforms:
         apiKey: "your-stt-key"
         model: "glm-asr"
 ```
+
+`QQ_GROUP_POLICY` / `QQ_GROUP_ALLOWED_USERS` (.env) and `group_policy` /
+`group_allow_from` (config.yaml extra) configure the same settings — the env
+bridge overrides config.yaml when set.
+
+### Group Authorization Semantics
+
+Group access is enforced at two layers:
+
+1. **Adapter intake** (`group_policy`) — `disabled`/unset drop group messages;
+   `allowlist` only admits groups in `QQ_GROUP_ALLOWED_USERS`; `open` admits any group.
+2. **Gateway authorization** — even with `open`, a sender still needs
+   user-level authorization (DM pairing, `QQ_ALLOWED_USERS`, or
+   `QQ_ALLOW_ALL_USERS`/`GATEWAY_ALLOW_ALL_USERS`). `open` therefore means
+   "any group, existing authorized users" — it does not silently open the bot
+   to every QQ user.
 
 ## Voice Messages (STT)
 
@@ -113,7 +130,8 @@ This usually means:
 
 - Verify the bot's **intents** are enabled at q.qq.com
 - Check `QQ_ALLOWED_USERS` if DM access is restricted
-- For group messages, ensure the bot is **@mentioned** (group policy may require allowlisting)
+- For group messages, set `QQ_GROUP_POLICY` (`allowlist` + `QQ_GROUP_ALLOWED_USERS`, or `open`) — without it, group messages are dropped at adapter intake
+- For `open` group policy, ensure senders are user-authorized (pairing, `QQ_ALLOWED_USERS`, or `QQ_ALLOW_ALL_USERS`)
 - Check `QQBOT_HOME_CHANNEL` for cron/notification delivery
 
 ### Connection errors

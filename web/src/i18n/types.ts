@@ -1326,6 +1326,14 @@ export interface Translations {
     qrAllowedOpenIds: string;
     qrPlaceholderUserIds: string;
     qrPlaceholderOpenIds: string;
+    groupPolicy: string;
+    groupDisabled: string;
+    groupAllowlisted: string;
+    groupOpen: string;
+    qrAllowedGroupOpenIds: string;
+    qrPlaceholderGroupOpenIds: string;
+    groupOpenHelp: string;
+    validateQqGroupPolicy: string;
     qrHomeChannel: string;
     qrBadgeConnected: string;
     qrBadgeWaiting: string;

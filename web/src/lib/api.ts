@@ -1022,7 +1022,13 @@ export const api = {
     ),
   applyQqbotOnboarding: (
     pairingId: string,
-    body: { dm_policy?: string; allowed_users?: string; home_channel?: boolean },
+    body: {
+      dm_policy?: string;
+      allowed_users?: string;
+      group_policy?: string;
+      group_allowed_users?: string;
+      home_channel?: boolean;
+    },
   ) =>
     fetchJSON<QqbotOnboardingApplyResponse>(
       `/api/messaging/qqbot/onboarding/${encodeURIComponent(pairingId)}/apply`,
@@ -1678,8 +1684,9 @@ export interface MessagingPlatform {
   } | null;
   qqbot_setup?: {
     dm_policy?: string;
-    allowed_users_set?: boolean;
-    home_channel_set?: boolean;
+    /** Effective group policy: "open" | "allowlist" | "disabled" | "" (unset). */
+    group_policy?: string;
+    group_allowed_users_set?: boolean;
   } | null;
   env_vars: MessagingPlatformEnvVar[];
 }

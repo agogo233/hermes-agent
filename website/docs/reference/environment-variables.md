@@ -487,6 +487,7 @@ These are set automatically by the Docker terminal backend when `proxy.enabled: 
 | `QQ_STT_MODEL` | Model name for external STT provider (optional) |
 | `QQ_ALLOWED_USERS` | Comma-separated QQ user openIDs allowed to message the bot |
 | `QQ_GROUP_ALLOWED_USERS` | Comma-separated QQ group IDs for group @-message access |
+| `QQ_GROUP_POLICY` | Group message authorization: `open` (any group; senders still need user-level authorization), `allowlist`, or `disabled` (default) |
 | `QQ_ALLOW_ALL_USERS` | Allow all users (`true`/`false`, overrides `QQ_ALLOWED_USERS`) |
 | `QQBOT_HOME_CHANNEL` | QQ user/group openID for cron delivery and notifications |
 | `QQBOT_HOME_CHANNEL_NAME` | Display name for the QQ home channel |

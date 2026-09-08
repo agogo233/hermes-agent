@@ -378,6 +378,7 @@ description: "Hermes Agent 使用的所有环境变量完整参考"
 | `QQ_STT_MODEL` | 外部 STT 提供商的模型名称（可选） |
 | `QQ_ALLOWED_USERS` | 允许向 bot 发送消息的逗号分隔 QQ 用户 openID |
 | `QQ_GROUP_ALLOWED_USERS` | 群 @消息访问的逗号分隔 QQ 群 ID |
+| `QQ_GROUP_POLICY` | 群消息授权方式：`open`（任意群；发送者仍需用户级授权）、`allowlist` 或 `disabled` | 未设置（丢弃群消息） |
 | `QQ_ALLOW_ALL_USERS` | 允许所有用户（`true`/`false`，覆盖 `QQ_ALLOWED_USERS`） |
 | `QQBOT_HOME_CHANNEL` | cron 投递和通知的 QQ 用户/群 openID |
 | `QQBOT_HOME_CHANNEL_NAME` | QQ 主频道的显示名称 |

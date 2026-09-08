@@ -166,6 +166,26 @@ def _raw_config_home_channel(platform_id: str) -> dict | None:
         return None
 
 
+def _raw_config_platform_extra(platform_id: str) -> dict:
+    """``platforms.<id>.extra`` as written in config.yaml (pre env-override).
+
+    The gateway's env bridge (gateway/config_env.py) overwrites matching extra
+    keys when the env var is set, so the effective value is ``env or this``.
+    """
+    try:
+        cfg = load_config()
+        platforms = cfg.get("platforms")
+        if not isinstance(platforms, dict):
+            return {}
+        plat_cfg = platforms.get(platform_id)
+        if not isinstance(plat_cfg, dict):
+            return {}
+        extra = plat_cfg.get("extra")
+        return extra if isinstance(extra, dict) else {}
+    except Exception:
+        return {}
+
+
 def _home_channel_source(
     platform_id: str,
     effective_home: dict | None,
@@ -246,6 +266,9 @@ _ENV_VALUE_RULES: dict[tuple[str, str], tuple[Any, str]] = {
     ("slack", "SLACK_ALLOWED_USERS"): (
         lambda v: all(u == "*" or _SLACK_MEMBER_ID_RE.fullmatch(u) for u in _csv_ids(v)),
         "Slack allowed user IDs must be comma-separated member IDs like U01ABC2DEF3."),
+    ("qqbot", "QQ_GROUP_POLICY"): (
+        lambda v: v.strip().lower() in _QQBOT_GROUP_POLICY_CHOICES,
+        "QQ group policy must be one of: open, allowlist, disabled."),
 }
 
 
@@ -394,6 +417,22 @@ def _messaging_platform_payload(
             "mode": whatsapp_mode if whatsapp_mode in {"bot", "self-chat"} else "",
             "allowed_users_set": bool(env_value("WHATSAPP_ALLOWED_USERS").strip()),
             "home_channel_set": bool(home_channel),
+        }
+    if platform_id == "qqbot":
+        # Effective values follow the gateway's env bridge precedence: env over
+        # config.yaml extra. dm_policy has no env of its own — QQ_ALLOW_ALL_USERS
+        # is the gateway-layer allow-all opt-in, QQ_ALLOWED_USERS the allowlist.
+        dm_policy = "pairing"
+        if env_value("QQ_ALLOWED_USERS").strip():
+            dm_policy = "allowlist"
+        if env_value("QQ_ALLOW_ALL_USERS").strip().lower() in ("true", "1", "yes"):
+            dm_policy = "open"
+        group_policy = env_value("QQ_GROUP_POLICY").strip().lower() \
+            or str(_raw_config_platform_extra(platform_id).get("group_policy") or "").strip().lower()
+        payload["qqbot_setup"] = {
+            "dm_policy": dm_policy,
+            "group_policy": group_policy if group_policy in _QQBOT_GROUP_POLICY_CHOICES else "",
+            "group_allowed_users_set": bool(env_value("QQ_GROUP_ALLOWED_USERS").strip()),
         }
     return payload
 
@@ -1187,6 +1226,7 @@ async def cancel_weixin_onboarding(pairing_id: str):
 _QQBOT_ONBOARDING_TTL_SECONDS = 600
 _QQBOT_ONBOARDING_TERMINAL_STATUSES = {"connected", "error", "expired", "cancelled"}
 _QQBOT_DM_POLICY_CHOICES = ("pairing", "open", "allowlist")
+_QQBOT_GROUP_POLICY_CHOICES = ("open", "allowlist", "disabled")
 
 
 @dataclass
@@ -1379,7 +1419,16 @@ async def apply_qqbot_onboarding(
                 status_code=400,
                 detail="dm_policy must be one of: pairing, open, allowlist.",
             )
+        group_policy = None
+        if body.group_policy is not None:
+            group_policy = str(body.group_policy).strip().lower()
+            if group_policy not in _QQBOT_GROUP_POLICY_CHOICES:
+                raise HTTPException(
+                    status_code=400,
+                    detail="group_policy must be one of: open, allowlist, disabled.",
+                )
         allowed_users = str(body.allowed_users or "").replace(" ", "")
+        group_allowed_users = str(body.group_allowed_users or "").replace(" ", "")
         effective_profile = body.profile or profile or record.profile or ""
         client_secret = record._client_secret
 
@@ -1390,6 +1439,15 @@ async def apply_qqbot_onboarding(
             save_env_value("QQ_ALLOW_ALL_USERS", "true" if dm_policy == "open" else "false")
             if allowed_users:
                 save_env_value("QQ_ALLOWED_USERS", allowed_users)
+            # ``None`` = don't touch persisted group settings (mirrors home_channel).
+            # "open" deliberately does NOT set QQ_ALLOW_ALL_USERS: at the gateway authz
+            # layer group senders still need user-level authorization (pairing /
+            # allowlist / allow-all), and silently flipping the DM allow-all would
+            # open direct messages as a side effect.
+            if group_policy is not None:
+                save_env_value("QQ_GROUP_POLICY", group_policy)
+                if group_policy == "allowlist" and group_allowed_users:
+                    save_env_value("QQ_GROUP_ALLOWED_USERS", group_allowed_users)
             if body.home_channel is None:
                 pass  # leaving any persisted home channel untouched
             elif body.home_channel and record.user_id:

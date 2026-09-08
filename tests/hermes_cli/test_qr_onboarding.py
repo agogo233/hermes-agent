@@ -378,3 +378,105 @@ def test_qqbot_invalid_dm_policy_raises_400(monkeypatch):
             )
         )
     assert exc_info.value.status_code == 400
+
+
+def test_qqbot_apply_saves_group_policy(monkeypatch, tmp_path):
+    """Group settings: explicit allowlist persists both keys; None leaves both untouched."""
+    ws = _make_ws(monkeypatch)
+    ws._qqbot_onboarding_sessions.clear()
+    saved = {}
+    monkeypatch.setattr(ws, "save_env_value", lambda k, v: saved.setdefault(k, v))
+    monkeypatch.setattr(ws, "_write_platform_enabled", lambda pid, val: None)
+    monkeypatch.setattr(
+        ws, "_restart_gateway_after_whatsapp_onboarding", lambda profile=None: {"restart_started": True}
+    )
+    monkeypatch.setattr(ws, "get_hermes_home", lambda: str(tmp_path))
+
+    with patch.object(ws.secrets, "token_urlsafe", return_value="qg1"):
+        start = asyncio.run(ws.start_qqbot_onboarding())
+    record = ws._qqbot_onboarding_sessions[start["pairing_id"]]
+    record.status = "connected"
+    record.account_id = "app-g"
+    record._client_secret = "cs-g"
+
+    result = asyncio.run(
+        ws.apply_qqbot_onboarding(
+            start["pairing_id"],
+            ws.QqbotOnboardingApply(
+                dm_policy="pairing",
+                group_policy="allowlist",
+                group_allowed_users="grp1, grp2",
+            ),
+        )
+    )
+    assert result["ok"] is True
+    assert saved["QQ_GROUP_POLICY"] == "allowlist"
+    assert saved["QQ_GROUP_ALLOWED_USERS"] == "grp1,grp2"
+
+    # group_policy=None must not touch persisted group settings (mirrors home_channel).
+    with patch.object(ws.secrets, "token_urlsafe", return_value="qg2"):
+        start2 = asyncio.run(ws.start_qqbot_onboarding())
+    record2 = ws._qqbot_onboarding_sessions[start2["pairing_id"]]
+    record2.status = "connected"
+    record2.account_id = "app-g2"
+    record2._client_secret = "cs-g2"
+    asyncio.run(
+        ws.apply_qqbot_onboarding(
+            start2["pairing_id"],
+            ws.QqbotOnboardingApply(dm_policy="pairing"),
+        )
+    )
+    assert "QQ_GROUP_POLICY" not in saved
+    assert "QQ_GROUP_ALLOWED_USERS" not in saved
+
+
+def test_qqbot_invalid_group_policy_raises_400(monkeypatch):
+    ws = _make_ws(monkeypatch)
+    ws._qqbot_onboarding_sessions.clear()
+
+    with patch.object(ws.secrets, "token_urlsafe", return_value="qg3"):
+        start = asyncio.run(ws.start_qqbot_onboarding())
+    record = ws._qqbot_onboarding_sessions[start["pairing_id"]]
+    record.status = "connected"
+    record.account_id = "a"
+    record._client_secret = "s"
+
+    with pytest.raises(Exception) as exc_info:
+        asyncio.run(
+            ws.apply_qqbot_onboarding(
+                start["pairing_id"],
+                ws.QqbotOnboardingApply(group_policy="bogus"),
+            )
+        )
+    assert exc_info.value.status_code == 400
+
+
+def test_qqbot_group_open_does_not_set_allow_all(monkeypatch, tmp_path):
+    """Group "open" must not flip the DM allow-all: gateway authz keeps senders
+    user-gated, and silently writing QQ_ALLOW_ALL_USERS=true would open DMs."""
+    ws = _make_ws(monkeypatch)
+    ws._qqbot_onboarding_sessions.clear()
+    saved = {}
+    monkeypatch.setattr(ws, "save_env_value", lambda k, v: saved.setdefault(k, v))
+    monkeypatch.setattr(ws, "_write_platform_enabled", lambda pid, val: None)
+    monkeypatch.setattr(
+        ws, "_restart_gateway_after_whatsapp_onboarding", lambda profile=None: {"restart_started": True}
+    )
+    monkeypatch.setattr(ws, "get_hermes_home", lambda: str(tmp_path))
+
+    with patch.object(ws.secrets, "token_urlsafe", return_value="qg4"):
+        start = asyncio.run(ws.start_qqbot_onboarding())
+    record = ws._qqbot_onboarding_sessions[start["pairing_id"]]
+    record.status = "connected"
+    record.account_id = "app-o"
+    record._client_secret = "cs-o"
+
+    asyncio.run(
+        ws.apply_qqbot_onboarding(
+            start["pairing_id"],
+            ws.QqbotOnboardingApply(dm_policy="pairing", group_policy="open"),
+        )
+    )
+    assert saved["QQ_GROUP_POLICY"] == "open"
+    assert saved["QQ_ALLOW_ALL_USERS"] == "false"
+    assert "QQ_GROUP_ALLOWED_USERS" not in saved

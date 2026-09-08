@@ -2721,6 +2721,9 @@ OPTIONAL_ENV_VARS = {
         "QQ Allowed Users", password=None),
     "QQ_GROUP_ALLOWED_USERS": _msg("Comma-separated QQ group IDs allowed to interact with the bot",
         "QQ Group Allowed Users", password=None),
+    "QQ_GROUP_POLICY": _msg("How QQ group messages are authorized: open (any group, senders still "
+        "need user-level authorization), allowlist (only QQ_GROUP_ALLOWED_USERS), or disabled",
+        "QQ Group Policy", password=None),
     "QQ_ALLOW_ALL_USERS": _msg("Allow all QQ users without an allowlist (true/false)",
         "Allow All QQ Users", password=None),
     "QQBOT_HOME_CHANNEL": _msg("Default QQ channel/group for cron delivery and notifications",
