@@ -426,8 +426,8 @@ def test_qqbot_apply_saves_group_policy(monkeypatch, tmp_path):
             ws.QqbotOnboardingApply(dm_policy="pairing"),
         )
     )
-    assert "QQ_GROUP_POLICY" not in saved
-    assert "QQ_GROUP_ALLOWED_USERS" not in saved
+    assert saved["QQ_GROUP_POLICY"] == "allowlist"
+    assert saved["QQ_GROUP_ALLOWED_USERS"] == "grp1,grp2"
 
 
 def test_qqbot_invalid_group_policy_raises_400(monkeypatch):
