@@ -309,17 +309,21 @@ def _platform_enablement(
     os.environ and would leak the root install's tokens into the profile's state."""
     required = entry["required_env"]
     if scoped:
+        configured = bool(required) and all(env_on_disk.get(key) for key in required)
         try:
             plat_cfg = (load_config().get("platforms") or {}).get(platform_id)
             plat_cfg = plat_cfg if isinstance(plat_cfg, dict) else {}
-            enabled = bool(plat_cfg.get("enabled"))
+            hc = plat_cfg.get("home_channel")
+            # Setup writes credentials without a platforms entry; explicit disable wins.
+            raw_enabled = plat_cfg.get("enabled")
+            enabled = False if raw_enabled is False else bool(raw_enabled) or configured
+            home_channel = hc if isinstance(hc, dict) else None
         except Exception:
-            enabled = False
+            enabled, home_channel = False, None
         # Env overrides win over config.yaml here too (mirroring the gateway's
         # ``_apply_env_overrides``). Without this, a profile whose home came
         # from QR onboarding (.env) would show home_channel=null while
         # home_channel_source="env" — an inconsistent card/modal state.
-        home_channel = _raw_config_home_channel(platform_id)
         env_key = _home_channel_env_name(platform_id)
         env_value = (env_on_disk.get(env_key) or "").strip() if env_key else ""
         if env_value:
@@ -331,7 +335,7 @@ def _platform_enablement(
             thread = (env_on_disk.get(f"{env_key}_THREAD_ID") or "").strip()
             if thread:
                 home_channel["thread_id"] = thread
-        return enabled, all(env_on_disk.get(key) for key in required), home_channel
+        return enabled, configured, home_channel
     try:
         from gateway.config import Platform, load_gateway_config
 
@@ -368,6 +372,12 @@ def _messaging_platform_payload(
         pid_probe=get_running_pid_cached, runtime_reader=read_runtime_status,
         runtime_pid_probe=get_runtime_status_running_pid,
     ).running
+    if not gateway_running:
+        # gateway_state.json outlives its writer and keeps per-platform entries across
+        # restarts, so a stopped gateway that once ran WITHOUT credentials still says
+        # "fatal / No bot token configured" after the user saved a token. Only a live
+        # process's verdict describes the current config; a dead one's is history.
+        runtime_platform = {}
 
     def env_value(key: str) -> str:
         # Profile-scoped: judge only the profile's own .env — the dashboard process's
