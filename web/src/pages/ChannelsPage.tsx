@@ -765,11 +765,17 @@ export default function ChannelsPage() {
     setSaving(true);
     try {
       const body: MessagingPlatformUpdate = { env, enabled: true, ...homeAction };
-      await api.updateMessagingPlatform(editing.id, body);
-      showToast((tCh?.saveSuccess ?? "{name} saved").replace("{name}", editing.name), "success");
+      const result = await api.updateMessagingPlatform(editing.id, body);
+      showToast(
+        result.hot_served
+          ? `${(tCh?.saveSuccess ?? "{name} saved").replace("{name}", editing.name)}; the running gateway is connecting`
+          : (tCh?.saveSuccess ?? "{name} saved").replace("{name}", editing.name),
+        "success",
+      );
       setEditing(null);
-      setRestartNeeded(true);
+      if (!result.hot_served) setRestartNeeded(true);
       await load();
+      if (result.hot_served) setTimeout(() => void load(), 4000);
     } catch (e) {
       showToast((tCh?.saveFailed ?? "Failed to save: {error}").replace("{error}", String(e)), "error");
     } finally {
@@ -781,7 +787,7 @@ export default function ChannelsPage() {
     const next = !platform.enabled;
     setTogglingId(platform.id);
     try {
-      await api.updateMessagingPlatform(platform.id, { enabled: next });
+      const result = await api.updateMessagingPlatform(platform.id, { enabled: next });
       setPlatforms((prev) =>
         prev.map((p) =>
           p.id === platform.id
@@ -789,7 +795,8 @@ export default function ChannelsPage() {
             : p,
         ),
       );
-      setRestartNeeded(true);
+      if (result.hot_served) setTimeout(() => void load(), 4000);
+      else setRestartNeeded(true);
     } catch (e) {
       showToast((tCh?.toggleError ?? `Error: ${e}`).replace("{error}", String(e)), "error");
     } finally {
@@ -1213,6 +1220,12 @@ export default function ChannelsPage() {
                       ) : (
                         <span className="text-xs text-muted-foreground/70">
                           {(tCh?.homeNotSet ?? "No home channel") + (tCh?.homeCardSuffix ?? " — set for cron deliveries")}
+                        </span>
+                      )}
+                      {platform.ingress_url && (
+                        <span className="text-xs text-muted-foreground break-all">
+                          Callback URL (shared listener):{" "}
+                          <code className="font-mono">{platform.ingress_url}</code>
                         </span>
                       )}
                     </div>
