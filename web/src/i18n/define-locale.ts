@@ -8,5 +8,7 @@ import type { Translations } from './types'
 // still fail the type-check.
 export type TranslationOverrides = TranslationOverride<Translations>
 
+export { mergeTranslations }
+
 export const defineLocale = (overrides: TranslationOverrides): Translations =>
   mergeTranslations<Translations>(en, overrides)
