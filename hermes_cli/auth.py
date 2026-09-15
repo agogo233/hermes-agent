@@ -1369,7 +1369,8 @@ def _config_model_provider() -> Tuple[Any, Optional[str]]:
     (#108383)."""
     try:
         from hermes_cli.config import load_config
-        model_cfg = (load_config() or {}).get("model")
+        cfg = load_config() or {}
+        model_cfg = cfg.get("model")
         provider = model_cfg.get("provider") if isinstance(model_cfg, dict) else None
         provider = provider.strip().lower() if isinstance(provider, str) else ""
         provider = _plugin_aliases().get(provider, provider)
@@ -1377,6 +1378,15 @@ def _config_model_provider() -> Tuple[Any, Optional[str]]:
             return model_cfg, "custom"
         if provider in PROVIDER_REGISTRY:
             return model_cfg, provider
+        # A bare ``providers.<key>`` / legacy ``custom_providers`` name — the same alias spelling
+        # the runtime resolver and /model picker honour (LAN-relay endpoints are neither registry
+        # ids nor loopback, so the URL rung below cannot see them). Same explicit intent as any
+        # pin (#108383's asymmetry, second spelling).
+        if provider:
+            from hermes_cli.config import get_compatible_custom_providers
+            from hermes_cli.providers import resolve_custom_provider
+            if resolve_custom_provider(provider, get_compatible_custom_providers(cfg)) is not None:
+                return model_cfg, "custom"
         # No provider pin but a base_url the bare-custom runtime rung would honour (a loopback
         # llama.cpp/vLLM/ollama server) — same explicit intent, spelled by URL.
         base_url = str(model_cfg.get("base_url") or "").strip() if isinstance(model_cfg, dict) else ""
