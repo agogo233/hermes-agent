@@ -602,8 +602,19 @@ export default function McpPage() {
 
         {servers.length === 0 && (
           <Card>
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              {t.mcp.none}
+            <CardContent className="flex flex-col items-center gap-3 py-8 text-center text-sm text-muted-foreground">
+              <p>{t.mcp.noneDescription}</p>
+              <Button
+                size="sm"
+                onClick={() =>
+                  document
+                    .getElementById("mcp-catalog")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+                prefix={<Package className="h-3.5 w-3.5" />}
+              >
+                {t.mcp.browseCatalog}
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -745,7 +756,7 @@ export default function McpPage() {
             className="flex items-center gap-2 text-muted-foreground"
           >
             <Package className="h-4 w-4" />
-            {t.mcp.catalog.replace("{count}", String(catalog.length))}
+            <span id="mcp-catalog">{t.mcp.catalog.replace("{count}", String(catalog.length))}</span>
           </H2>
         </div>
 

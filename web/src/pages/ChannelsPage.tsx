@@ -39,6 +39,7 @@ import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { usePageHeader } from "@/contexts/usePageHeader";
 import { cn, themedBody } from "@/lib/utils";
 import { useI18n } from "@/i18n";
+import { errorMessage } from "@/lib/api-error";
 
 // State → badge mapping. The backend emits a small, fixed vocabulary plus
 // whatever the live gateway runtime reports (connected/disconnected/fatal).
@@ -697,7 +698,7 @@ export default function ChannelsPage() {
         setGatewayStartCommand(res.gateway_start_command || "hermes gateway start");
       })
       .catch((e) => showToast(tCh?.loadError ?? `Error: ${e}`, "error"));
-  }, [showToast, tCh]);
+    }, [showToast, tCh]);
 
   useEffect(() => {
     load().finally(() => setLoading(false));

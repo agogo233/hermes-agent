@@ -47,6 +47,9 @@ import { cn, themedBody } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import {
+  gatewayStateNeedsLogs,
+  gatewayStateDescription,
+  gatewayActionFailedMessage,
   servedProfileRefusal,
   sharedGatewayProfiles,
   sharedGatewayRestartDescription,
@@ -69,6 +72,7 @@ import type {
 } from "@/lib/api";
 import { useI18n } from "@/i18n";
 import type { Translations } from "@/i18n/types";
+import { apiErrorFromResponse, errorMessage } from "@/lib/api-error";
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -362,7 +366,7 @@ export default function SystemPage() {
       showToast("Migrating to a single multiplexed gateway", "success");
       setTimeout(loadAll, 5000);
     } catch (e) {
-      showToast(`Gateway migration failed: ${e}`, "error");
+      showToast(`Gateway migration failed: ${errorMessage(e)}`, "error");
     }
   };
 
@@ -484,7 +488,9 @@ export default function SystemPage() {
     setDownloadingBackup(true);
     try {
       const res = await api.downloadBackup(archive);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw apiErrorFromResponse(res.status, await res.text().catch(() => ""), res.url);
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -1112,9 +1118,13 @@ export default function SystemPage() {
                 {gatewayRunning ? t.system.gatewayRunning : t.system.gatewayStopped}
               </Badge>
               <span className="text-sm text-muted-foreground">
-                {status?.gateway_state ?? "—"}
-                {status?.gateway_pid ? ` · pid ${status.gateway_pid}` : ""}
+                {gatewayStateDescription(status?.gateway_state, gatewayRunning)}
               </span>
+              {gatewayStateNeedsLogs(status?.gateway_state) && (
+                <Link to="/logs?file=gateway" className="text-sm underline">
+                  Open logs
+                </Link>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <Button

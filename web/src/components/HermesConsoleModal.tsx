@@ -15,6 +15,7 @@ import { maybeReloadForLoopbackWsAuthFailure } from "@/lib/dashboard-auth-reload
 import { cn, themedBody } from "@/lib/utils";
 import { useI18n } from "@/i18n";
 import { useTheme } from "@/themes";
+import { errorMessage } from "@/lib/api-error";
 
 type ConsoleFrame =
   | {
@@ -114,6 +115,9 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
   const hasReadyFrameRef = useRef(false);
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("connecting");
+  // Bumped by the Reconnect button; a dependency of the connect effect so the
+  // console redials the same /api/console socket without closing the modal.
+  const [connectNonce, setConnectNonce] = useState(0);
   const [consoleProfile, setConsoleProfile] = useState("current");
   const { profile } = useProfileScope();
   const { theme } = useTheme();
@@ -434,17 +438,24 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
           pendingCommandRef.current = null;
           if (cancelled) return;
           setConnectionState(ev.code === 1000 ? "closed" : "error");
-          const reason = ev.reason ? ` ${ev.reason}` : "";
+          // Close code and server reason are diagnostics, not user copy.
+          console.warn(`[console] websocket closed code=${ev.code}${ev.reason ? ` reason=${ev.reason}` : ""}`);
           const message =
             ev.code === 1006 && !hasReadyFrameRef.current
               ? t.console.connectionError
-              : `Console closed (${ev.code}).${reason}`;
+              : ev.code === 1000
+                ? t.console.closed
+                : t.console.disconnected;
           writeLine(term, `\x1b[31m${message}\x1b[0m`);
         };
       } catch (err) {
         if (cancelled) return;
         setConnectionState("error");
-        writeLine(term, `\x1b[31mConsole unavailable: ${err}\x1b[0m`);
+        console.warn(`[console] connect failed: ${errorMessage(err)}`);
+        writeLine(
+          term,
+          "\x1b[31mConsole could not connect to the dashboard server. Check that `hermes dashboard` is running, then click Reconnect.\x1b[0m",
+        );
       }
     })();
 
@@ -462,7 +473,7 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
       activeCommandRef.current = false;
       hasReadyFrameRef.current = false;
     };
-  }, [handleFrame, handleInputData, open, profile, theme]);
+  }, [connectNonce, handleFrame, handleInputData, open, profile, theme]);
 
   useEffect(() => {
     if (!open) return;
@@ -514,6 +525,19 @@ export function HermesConsoleModal({ open, onClose }: HermesConsoleModalProps) {
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Badge tone={statusTone}>{connectionState}</Badge>
               <span className="font-mono">{consoleProfile}</span>
+              {(connectionState === "closed" || connectionState === "error") && (
+                <Button
+                  size="sm"
+                  outlined
+                  onClick={() => {
+                    setConnectionState("connecting");
+                    setConnectNonce((n) => n + 1);
+                  }}
+                  aria-label="Reconnect console"
+                >
+                  Reconnect
+                </Button>
+              )}
             </div>
           </div>
           <Button

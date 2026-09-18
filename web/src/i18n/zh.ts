@@ -1245,6 +1245,8 @@ export const zh: TranslationOverrides = {
     install: "安装",
     yourMcp: "MCP 服务器（{count}）",
     none: "暂无 MCP 服务器。",
+    noneDescription: "还没有 MCP 服务器。MCP 服务器可以为代理提供额外工具（GitHub、数据库、浏览器等）。可从下方目录中选择一个，或点击页面顶部的「添加服务器」。",
+    browseCatalog: "浏览目录",
     authBadge: "认证：{auth}",
     disabledBadge: "已禁用",
     envVarCount: "{n} 个环境变量",
@@ -1505,6 +1507,8 @@ export const zh: TranslationOverrides = {
     confirmPrompt: "确认？[y/N] ",
     connectionError:
       "控制台连接在握手前失败。请确认此仪表盘已连接到支持 /api/console 的后端。",
+    closed: "控制台已关闭。",
+    disconnected: "控制台与仪表盘服务器断开连接。点击重连以重试。",
     closeAria: "关闭控制台",
   },
 };

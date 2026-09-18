@@ -28,6 +28,7 @@ import { Label } from "@nous-research/ui/ui/components/label";
 import { usePageHeader } from "@/contexts/usePageHeader";
 import { cn, themedBody } from "@/lib/utils";
 import { useI18n } from "@/i18n";
+import { errorMessage } from "@/lib/api-error";
 
 interface CreatedWebhook {
   url: string;
