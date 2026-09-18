@@ -49,7 +49,6 @@ import { copyTextToClipboard } from "@/lib/clipboard";
 import {
   gatewayStateNeedsLogs,
   gatewayStateDescription,
-  gatewayActionFailedMessage,
   servedProfileRefusal,
   sharedGatewayProfiles,
   sharedGatewayRestartDescription,
