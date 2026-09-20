@@ -98,7 +98,9 @@ export interface Translations {
     activeSessionsLabel: string;
     gatewayStatusLabel: string;
     gatewayStrip: {
+      degraded?: string;
       failed: string;
+      heartbeatStale?: string;
       off: string;
       running: string;
       starting: string;
@@ -380,6 +382,8 @@ export interface Translations {
     editJob: string;
     last: string;
     next: string;
+    overdueSince?: string;
+    schedulerLastTicked?: string;
     pause: string;
     resume: string;
     triggerNow: string;

@@ -82,6 +82,7 @@ platforms:
         baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4"
         apiKey: "your-stt-key"
         model: "glm-asr"
+        timeout: 60              # seconds per transcription request (default 60)
 ```
 
 `QQ_GROUP_POLICY` / `QQ_GROUP_ALLOWED_USERS` (.env) and `group_policy` /
