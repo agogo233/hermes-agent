@@ -19,6 +19,7 @@ from hermes_cli.web_server_config import (
 )
 from hermes_cli.web_server_profiles import (
     _approval_mode_of, _broadcast_gateway_session_info, _is_other_profile, _parse_model_entries,
+    _parse_model_ids,
 )
 from fastapi import HTTPException, Request
 from hermes_cli.config import DEFAULT_CONFIG, OPTIONAL_ENV_VARS, read_raw_config, custom_endpoint_key_env, coerce_provider_id, find_provider_entry, get_compatible_custom_providers, redact_key, _deep_merge
@@ -110,10 +111,11 @@ async def get_schema(profile: Optional[str] = None):
 
 
 @config_router.get("/api/egress/status")
-async def get_egress_status():
+async def get_egress_status(profile: Optional[str] = None):
     """Dashboard/Desktop-readable egress proxy status and remediation text."""
     from hermes_cli.proxy_cli import format_status_text
-    return {"text": format_status_text()}
+    with _config_profile_scope(profile):  # reads the profile's ``proxy:`` config block
+        return {"text": format_status_text()}
 
 
 @router.put("/api/config")
@@ -921,8 +923,9 @@ async def validate_provider_credential(body: EnvVarUpdate, request: Request):
     url, auth = probe
     if key == "GEMINI_API_KEY":
         from agent.gemini_native_adapter import normalize_gemini_base_url
-        # A Vertex express key (AQ.) can only 403 on the Studio host; normalize routes it to aiplatform.
-        url = normalize_gemini_base_url(url.rsplit("/models", 1)[0], value) + "/models"
+        # Normalize guarantees the version segment; the key itself never decides the surface —
+        # AQ. keys exist for both AI Studio and Vertex express mode (#115306).
+        url = normalize_gemini_base_url(url.rsplit("/models", 1)[0]) + "/models"
     headers = {"Accept": "application/json"}
     params = {}
     if auth == "bearer":
