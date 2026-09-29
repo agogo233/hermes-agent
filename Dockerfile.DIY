@@ -152,6 +152,7 @@ RUN uv sync --frozen --no-install-project \
 COPY web/ web/
 COPY ui-tui/ ui-tui/
 COPY apps/shared/ apps/shared/
+COPY scripts/build/ scripts/build/
 RUN cd web && npm run build && cd ../ui-tui && npm run build
 
 # --- 源码 ---
