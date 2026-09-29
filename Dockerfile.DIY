@@ -144,7 +144,7 @@ RUN touch ./README.md
 RUN uv sync --frozen --no-install-project \
     --extra all --extra messaging --extra otlp \
     --extra anthropic --extra bedrock --extra azure-identity \
-    --extra hindsight --extra matrix
+    --extra matrix
 
 # --- 前端构建（与 Python 源码独立缓存：纯 Python 改动不重跑 web/ui-tui build）---
 # 构建产物 hermes_cli/web_dist/ 与 ui-tui/dist/ 已被 .dockerignore 排除出上下文，
