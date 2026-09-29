@@ -9,7 +9,7 @@
 #   runtime      — 仅运行时必要产物，无构建工具链
 #
 # 安全优化（相较于原版 Dockerfile）:
-#   1. python:3.13-slim (trixie) + 固定 sha256 digest
+#   1. python:3.14-slim (trixie) + 固定 sha256 digest
 #   2. uv:0.11.6-python3.13-trixie 固定 digest (仅拷贝二进制)
 #   3. gosu:1.19 (稳定版) + node:26-bookworm-slim 固定 digest
 #   4. 多阶段构建：构建工具链（gcc/build-essential/Python dev headers）不进入最终镜像
@@ -74,7 +74,7 @@ FROM node:26-bookworm-slim@sha256:9e6f9357d371591e32ab6f2d8a26d63bdd0d17c29eee3f
 FROM tianon/gosu:1.19@sha256:4f3cac1d780201437137b3a693a0bf23f28ef1b5a11262880419fd90c91ef425 AS gosu_source
 
 # ===== 阶段 2: 构建 =====================================================
-FROM python:3.13-slim@sha256:d49c1ff87eb98eac346fc250f52925f726eb913c43a92854246dd03c9692ad67 AS builder
+FROM python:3.14-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d AS builder
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -82,7 +82,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
 
 # --- 系统依赖（构建时完整版；node 不再用 apt 安装，改从 node_source 拷贝）---
 # 编译工具链 + libolm-dev：uv sync --extra matrix 的 python-olm 在无可用 wheel 时
-# 需源码编译（上游 #30399）；python:3.13-slim 不自带编译器与 libolm 头文件。
+# 需源码编译（上游 #30399）；python:3.14-slim 不自带编译器与 libolm 头文件。
 # 工具链仅存在于 builder，不进最终镜像。
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -168,7 +168,7 @@ RUN find /opt/hermes \( -type d -name __pycache__ -exec rm -rf {} + \) -o \
 RUN uv pip install --no-cache-dir --no-deps -e "."
 
 # ===== 阶段 3: 运行时 ====================================================
-FROM python:3.13-slim@sha256:d49c1ff87eb98eac346fc250f52925f726eb913c43a92854246dd03c9692ad67 AS runtime
+FROM python:3.14-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d AS runtime
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -201,7 +201,7 @@ db.close()"
 
 # --- 运行时最小依赖 ---
 # iputils-ping：agent 终端 ping；libatomic1：node/chromium 部分场景依赖，
-# python:3.13-slim 默认不带。
+# python:3.14-slim 默认不带。
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
