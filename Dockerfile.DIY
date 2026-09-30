@@ -3,7 +3,8 @@
 # 阶段划分:
 #   sqlite_build — 编译修复版 SQLite (WAL-reset bug, 见 #70480)
 #   uv_source    — 仅拷贝 uv/uvx 二进制
-#   node_source  — 仅拷贝 node 26 + npm (替代已 EOL 的 Debian nodejs 20)
+#   node_source  — 构建期 node 26 + npm (替代已 EOL 的 Debian nodejs 20)；
+#                  运行期 node/npm 来自 PM store（见 builder 阶段），两者同版本
 #   gosu_source  — 仅拷贝 gosu 二进制
 #   builder      — npm install, playwright, web/ui-tui 构建, Python venv
 #   runtime      — 仅运行时必要产物，无构建工具链
@@ -16,7 +17,7 @@
 #   5. npm_config_install_links=false 以 RUN 前缀环境变量方式设置
 #   6. Playwright 浏览器安装到非卷挂载路径
 #   7. Python 依赖层缓存：pyproject.toml/uv.lock 先行 COPY，源码变更不触发重装
-#   8. runtime 补充 node/npm / ffmpeg / openssh-client / docker-cli
+#   8. runtime 补充 ffmpeg / openssh-client / docker-cli；node/npm 走 PM store
 #   9. 清理 __pycache__ / .pyc 缩减镜像体积
 #  10. 固定 SQLite 库替代 Debian 有 WAL-reset bug 的 libsqlite3.so.0 (同步上游 #70480)
 #  11. s6-overlay 改用 curl + --retry 下载 (替代 ADD，规避 CDN 抖动导致构建失败)
@@ -79,6 +80,10 @@ FROM python:3.14-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
+# PM 工具 store 落在镜像层而非 $HERMES_HOME 数据卷：node/npm 必须随镜像烘焙，
+# 否则容器重建后 store 消失，而 HERMES_DISABLE_LAZY_INSTALLS=1 又禁止 PM 补装。
+# 上游 Dockerfile:201 用同一变量达成同样目的。
+ENV HERMES_RUNTIME_DIR=/opt/hermes/tools
 
 # --- 系统依赖（构建时完整版；node 不再用 apt 安装，改从 node_source 拷贝）---
 # 编译工具链 + libolm-dev：uv sync --extra matrix 的 python-olm 在无可用 wheel 时
@@ -102,7 +107,9 @@ RUN apt-get update && \
 
 COPY --chmod=0755 --from=gosu_source /gosu /usr/local/bin/
 COPY --chmod=0755 --from=uv_source /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
-# Node 26 + 内置 npm（npm/npx 以符号链接恢复，因为源镜像中它们是符号链接）
+# 构建期 node 26 + 内置 npm（npm/npx 以符号链接恢复，因为源镜像中它们是符号链接）。
+# 只服务本阶段的 npm install / playwright / 前端构建；运行期改用 PM store 里
+# 锁定同版本（26.x）的那份，见本阶段末尾与 runtime 的 symlink。
 COPY --chmod=0755 --from=node_source /usr/local/bin/node /usr/local/bin/
 COPY --from=node_source /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
 RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
@@ -168,6 +175,29 @@ RUN find /opt/hermes \( -type d -name __pycache__ -exec rm -rf {} + \) -o \
 # --- 链接 hermes-agent（依赖已缓存，仅需创建 editable link）---
 RUN uv pip install --no-cache-dir --no-deps -e "."
 
+# --- PM 工具 store：把 node/npm 装进镜像层 ---
+# 上游 b63c138d78 裁定 "Hermes 只用自己打包的 node/npm/npx/uv，缺失时绝不回落
+# 用户 PATH"（native-addon ABI 与 npm cache 混用会坏）。find_node_executable()
+# 因此只读 PM store，_tui_node_bin() 再经 pm.ensure() 拿 PATH —— store 里没有
+# node 时 ensure() 直接抛 InstallError，dashboard 建新对话必挂（PTY 1011）。
+#
+# 本镜像的 store 由 HERMES_RUNTIME_DIR 钉在 /opt/hermes/tools（镜像层，非
+# /opt/data 数据卷），所以 node 随镜像烘焙，容器重建后依然可解析。
+# explicit=True 标记这是有意的安装命令，绕开 lazy-install 策略；node 由
+# walk(['npm']) 带入，无需单列。这里用 pm.install.ensure 而非 pm.ensure：后者在
+# 非 PM-runtime 进程里会 _request() 再引导一整套独立 runtime（连带装 uv+python），
+# 而 builder 只需要就地写入 store。
+COPY pm/ pm/
+COPY hermes_constants.py hermes_constants.py
+COPY hermes_cli/__init__.py hermes_cli/runtime_state.py hermes_cli/
+RUN python3 -c 'from pm.install import ensure; ensure("npm", explicit=True)' && \
+    python3 -c 'from pathlib import Path
+from hermes_constants import find_node_executable
+for cmd in ("node", "npm", "npx"):
+    resolved = find_node_executable(cmd)
+    assert resolved and Path(resolved).is_file(), f"{cmd} 未落进 PM store: {resolved}"
+    print(cmd, resolved)'
+
 # ===== 阶段 3: 运行时 ====================================================
 FROM python:3.14-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d AS runtime
 
@@ -180,12 +210,10 @@ ENV HERMES_TUI_DIR=/opt/hermes/ui-tui
 ENV HERMES_HOME=/opt/data
 ENV HERMES_WRITE_SAFE_ROOT=/opt/data
 ENV HERMES_DISABLE_LAZY_INSTALLS=1
-# 本镜像的 node 由下方 node_source stage 直接拷入，不在 PM 的 package store 里，而
-# HERMES_DISABLE_LAZY_INSTALLS=1 又让 pm.ensure("node") 直接抛 InstallError。
-# hermes_constants.find_node_executable 按设计只读 PM store、不回落 PATH，所以
-# _tui_node_bin 只能靠 HERMES_NODE 这条显式路径拿到 node —— 否则 dashboard 建新
-# 对话必失败（PTY 1011，界面提示 "Chat could not start"）。
-ENV HERMES_NODE=/usr/local/bin/node
+# 与 builder 同一 store 路径：node/npm 由 builder 装进 /opt/hermes/tools 并随
+# /opt/hermes 一起 COPY 过来。缺这行的话 store_root() 会回落到 $HERMES_HOME/tools
+# （/opt/data 数据卷），容器重建后 node 消失，pm.ensure() 随之抛 InstallError。
+ENV HERMES_RUNTIME_DIR=/opt/hermes/tools
 # 密封的 venv 不允许 lazy install 写回镜像层；重定向到持久数据卷
 ENV HERMES_LAZY_INSTALL_TARGET=/opt/data/lazy-packages
 ENV PATH="/opt/hermes/bin:/opt/hermes/.venv/bin:/opt/data/.local/bin:${PATH}"
@@ -271,11 +299,18 @@ COPY --chmod=0755 --from=gosu_source /gosu /usr/local/bin/
 # 契约）；可变状态全在 $HERMES_HOME，lazy install 已重定向到 /opt/data/lazy-packages。
 COPY --link --chmod=a+rX,go-w --from=builder /opt/hermes /opt/hermes/
 
-# --- runtime 补齐 node/npm（Node 26，从 node_source 拷贝）---
-COPY --chmod=0755 --from=node_source /usr/local/bin/node /usr/local/bin/
-COPY --from=node_source /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
-RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
-    ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+# --- runtime 补齐 node/npm ---
+# 指向 builder 阶段装进 PM store 的那一份（/opt/hermes/tools，随上面的 COPY 过来），
+# 不再从 node_source 拷实体：find_node_executable() 只认 PM store，两处必须是同一个
+# node，否则 pm.ensure("npm") 仍会因 store 空而抛 InstallError。
+RUN python3 -c 'import sys; sys.path.insert(0, "/opt/hermes")
+from pathlib import Path
+from hermes_constants import find_node_executable
+for cmd in ("node", "npm", "npx"):
+    link = Path("/usr/local/bin") / cmd
+    link.unlink(missing_ok=True)
+    link.symlink_to(find_node_executable(cmd))' && \
+    node --version && npm --version
 
 # --- 补齐 Chromium 运行库 ---
 # builder 里的 `playwright install --with-deps` 把浏览器系统依赖装进了 builder 层；
