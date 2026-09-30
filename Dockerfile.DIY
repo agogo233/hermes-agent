@@ -190,13 +190,17 @@ RUN uv pip install --no-cache-dir --no-deps -e "."
 COPY pm/ pm/
 COPY hermes_constants.py hermes_constants.py
 COPY hermes_cli/__init__.py hermes_cli/runtime_state.py hermes_cli/
-RUN python3 -c 'from pm.install import ensure; ensure("npm", explicit=True)' && \
-    python3 -c 'from pathlib import Path
+RUN python3 -c 'from pm.install import ensure; ensure("npm", explicit=True)'
+# 脚本走 stdin（python3 -）而非 heredoc：Dockerfile 解析器会把 heredoc 体里的
+# 缩进行当成新指令（run 106 报 "FROM requires either one or three arguments"）。
+RUN python3 - <<'PY'
+from pathlib import Path
 from hermes_constants import find_node_executable
 for cmd in ("node", "npm", "npx"):
     resolved = find_node_executable(cmd)
     assert resolved and Path(resolved).is_file(), f"{cmd} 未落进 PM store: {resolved}"
-    print(cmd, resolved)'
+    print(cmd, resolved)
+PY
 
 # ===== 阶段 3: 运行时 ====================================================
 FROM python:3.14-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d AS runtime
@@ -303,14 +307,17 @@ COPY --link --chmod=a+rX,go-w --from=builder /opt/hermes /opt/hermes/
 # 指向 builder 阶段装进 PM store 的那一份（/opt/hermes/tools，随上面的 COPY 过来），
 # 不再从 node_source 拷实体：find_node_executable() 只认 PM store，两处必须是同一个
 # node，否则 pm.ensure("npm") 仍会因 store 空而抛 InstallError。
-RUN python3 -c 'import sys; sys.path.insert(0, "/opt/hermes")
+RUN python3 - <<'PY'
+import sys
+sys.path.insert(0, "/opt/hermes")
 from pathlib import Path
 from hermes_constants import find_node_executable
 for cmd in ("node", "npm", "npx"):
     link = Path("/usr/local/bin") / cmd
     link.unlink(missing_ok=True)
-    link.symlink_to(find_node_executable(cmd))' && \
-    node --version && npm --version
+    link.symlink_to(find_node_executable(cmd))
+PY
+RUN node --version && npm --version
 
 # --- 补齐 Chromium 运行库 ---
 # builder 里的 `playwright install --with-deps` 把浏览器系统依赖装进了 builder 层；
