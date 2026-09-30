@@ -1639,3 +1639,35 @@ class TestQQGroupPolicyEnvBridge:
     def test_env_group_policy_written_without_yaml_value(self, tmp_path, monkeypatch):
         config = self._qq_config(tmp_path, monkeypatch, yaml_extra="", env={"QQ_GROUP_POLICY": "open"})
         assert config.platforms[Platform.QQBOT].extra.get("group_policy") == "open"
+
+
+class TestOnAllAdaptersDown:
+    """gateway.on_all_adapters_down: what the runner does when the last messaging
+    adapter goes down (#118080). Default 'exit' preserves the service-restart
+    contract; 'stay_alive' is for launchers with no supervising service manager
+    (the desktop app's direct `hermes serve` child)."""
+
+    def test_default_is_exit(self):
+        config = GatewayConfig.from_dict({})
+        assert config.on_all_adapters_down == "exit"
+
+    def test_yaml_value_accepted_and_roundtrips(self):
+        config = GatewayConfig.from_dict({"gateway": {"on_all_adapters_down": "stay_alive"}})
+        assert config.on_all_adapters_down == "stay_alive"
+        assert GatewayConfig.from_dict(config.to_dict()).on_all_adapters_down == "stay_alive"
+
+    def test_unrecognized_yaml_falls_back_to_exit(self):
+        config = GatewayConfig.from_dict({"gateway": {"on_all_adapters_down": "yolo"}})
+        assert config.on_all_adapters_down == "exit"
+
+    def test_env_override_wins_and_invalid_env_falls_back(self, monkeypatch):
+        monkeypatch.setenv("GATEWAY_ON_ALL_ADAPTERS_DOWN", "stay_alive")
+        assert GatewayConfig.from_dict(
+            {"gateway": {"on_all_adapters_down": "exit"}}
+        ).on_all_adapters_down == "stay_alive"
+        monkeypatch.setenv("GATEWAY_ON_ALL_ADAPTERS_DOWN", "whatever")
+        assert GatewayConfig.from_dict(
+            {"gateway": {"on_all_adapters_down": "exit"}}
+        ).on_all_adapters_down == "exit"
+        monkeypatch.delenv("GATEWAY_ON_ALL_ADAPTERS_DOWN")
+        assert GatewayConfig.from_dict({}).on_all_adapters_down == "exit"
