@@ -180,6 +180,12 @@ ENV HERMES_TUI_DIR=/opt/hermes/ui-tui
 ENV HERMES_HOME=/opt/data
 ENV HERMES_WRITE_SAFE_ROOT=/opt/data
 ENV HERMES_DISABLE_LAZY_INSTALLS=1
+# 本镜像的 node 由下方 node_source stage 直接拷入，不在 PM 的 package store 里，而
+# HERMES_DISABLE_LAZY_INSTALLS=1 又让 pm.ensure("node") 直接抛 InstallError。
+# hermes_constants.find_node_executable 按设计只读 PM store、不回落 PATH，所以
+# _tui_node_bin 只能靠 HERMES_NODE 这条显式路径拿到 node —— 否则 dashboard 建新
+# 对话必失败（PTY 1011，界面提示 "Chat could not start"）。
+ENV HERMES_NODE=/usr/local/bin/node
 # 密封的 venv 不允许 lazy install 写回镜像层；重定向到持久数据卷
 ENV HERMES_LAZY_INSTALL_TARGET=/opt/data/lazy-packages
 ENV PATH="/opt/hermes/bin:/opt/hermes/.venv/bin:/opt/data/.local/bin:${PATH}"
