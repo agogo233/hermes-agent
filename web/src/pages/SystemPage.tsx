@@ -70,7 +70,6 @@ import type {
   DebugShareResponse,
   GatewayMigratePlan,
 } from "@/lib/api";
-import { useI18n } from "@/i18n";
 import type { Translations } from "@/i18n/types";
 import { apiErrorFromResponse, errorMessage } from "@/lib/api-error";
 
@@ -399,6 +398,9 @@ export default function SystemPage() {
   // Memory provider selection lives on the /plugins page now (see the
   // read-only display + link below); the dropdown was intentionally
   // dropped from this card during the admin-panel refresh.
+  const activeMemoryProvider = memory?.active
+    ? memory.providers.find((provider) => provider.name === memory.active)
+    : null;
   const memoryReset = useConfirmDelete({
     onDelete: useCallback(
       async (target: string) => {

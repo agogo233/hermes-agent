@@ -159,7 +159,7 @@ export default function McpPage() {
       setTransport("http");
       setCreateModalOpen(false);
       loadServers();
-    } catch (e) {
+    } catch {
       showToast(t.mcp.addFailed, "error");
     } finally {
       setCreating(false);
@@ -176,7 +176,7 @@ export default function McpPage() {
       } else {
         showToast(t.mcp.testFailed.replace("{name}", server.name).replace("{error}", result.error ?? t.mcp.connectionFailed), "error");
       }
-    } catch (e) {
+    } catch {
       showToast(t.mcp.testError, "error");
     } finally {
       setTesting(null);
@@ -197,7 +197,7 @@ export default function McpPage() {
         [server.name]: { ok: true, tools: result.tools ?? [] },
       }));
       showToast(t.mcp.oauthComplete.replace("{name}", server.name), "success");
-    } catch (e) {
+    } catch {
       showToast(t.mcp.oauthError, "error");
     } finally {
       setAuthenticating(null);
@@ -215,7 +215,7 @@ export default function McpPage() {
       setRestartNote(
         t.mcp.restartNote,
       );
-    } catch (e) {
+    } catch {
       showToast(t.mcp.toggleError, "error");
     } finally {
       setTogglingName(null);
@@ -257,7 +257,7 @@ export default function McpPage() {
         setInstallEntry(null);
         setInstallEnv({});
         await Promise.all([loadServers(), loadCatalog()]);
-      } catch (e) {
+      } catch {
         showToast(t.mcp.installFailed, "error");
       } finally {
         setInstallingName(null);

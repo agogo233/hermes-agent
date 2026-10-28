@@ -3055,7 +3055,7 @@ OPTIONAL_ENV_VARS = {
         "QQ Allowed Users", password=None),
     "QQ_GROUP_ALLOWED_USERS": _msg("Comma-separated QQ group IDs allowed to interact with the bot",
         "QQ Group Allowed Users", password=None),
-    "QQ_GROUP_POLICY": _msg("How QQ group messages are authorized: open (any group, senders still "
+    "QQ_GROUP_POLICY": _msg("How QQ group messages are authorized: open (any group, senders still "  # windows-footgun: ok
         "need user-level authorization), allowlist (only QQ_GROUP_ALLOWED_USERS), or disabled",
         "QQ Group Policy", password=None),
     "QQ_ALLOW_ALL_USERS": _msg("Allow all QQ users without an allowlist (true/false)",

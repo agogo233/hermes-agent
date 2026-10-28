@@ -58,7 +58,7 @@ const STATE_BADGE: Record<
   fatal: { tone: "destructive", labelKey: "stateError" },
 };
 
-function stateBadge(state: string, tChannels: any) {
+function stateBadge(state: string, tChannels: Record<string, string | undefined> | undefined) {
   const entry = STATE_BADGE[state];
   if (!entry) return { tone: "outline" as const, label: state };
   const label = tChannels?.[entry.labelKey] ?? state;
@@ -73,7 +73,7 @@ const SLACK_TOKEN_PREFIXES: Record<string, string> = {
   SLACK_APP_TOKEN: "xapp-",
 };
 
-function validateMessagingEnvField(field: MessagingPlatformEnvVar, value: string, tChannels: any): string | null {
+function validateMessagingEnvField(field: MessagingPlatformEnvVar, value: string, tChannels: Record<string, string | undefined> | undefined): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
@@ -122,7 +122,7 @@ function validateMessagingEnvField(field: MessagingPlatformEnvVar, value: string
   return null;
 }
 
-function formatExpiry(expiresAt: string, tChannels: any): { label: string; isExpired: boolean } {
+function formatExpiry(expiresAt: string, tChannels: Record<string, string | undefined> | undefined): { label: string; isExpired: boolean } {
   const ms = Date.parse(expiresAt) - Date.now();
   if (!Number.isFinite(ms) || ms <= 0) return { label: tChannels?.expired ?? "expired", isExpired: true };
   const seconds = Math.ceil(ms / 1000);
@@ -352,15 +352,15 @@ function QrOnboardingPanel({
         ? await api.startWeixinOnboarding()
         : await api.startQqbotOnboarding();
       setSetup(res as typeof _setup);
-      if ((res as any).qr_payload) {
-        await updateQr((res as any).qr_payload);
+      if (res.qr_payload) {
+        await updateQr(res.qr_payload);
       }
-      if ((res as any).status === "error") {
-        setError((res as any).error || tCh?.qrSetupFailed);
+      if (res.status === "error") {
+        setError(res.error || tCh?.qrSetupFailed);
         setSetup(null);
         setPhase("idle");
       } else {
-        setPhase((res as any).status === "connected" ? "connected" : "waiting");
+        setPhase(res.status === "connected" ? "connected" : "waiting");
       }
     } catch (startError) {
       setPhase("idle");
@@ -413,14 +413,14 @@ function QrOnboardingPanel({
       };
       const result = await applyFn(_setup.pairing_id, body);
       resetSetup();
-      if ((result as any).restart_started) {
+      if (result.restart_started) {
         showToast(applySuccessMessage, "success");
         setRestartNeeded(false);
         setTimeout(() => void onChanged(), 4000);
         void watchRestartOutcome();
       } else {
         onRestartNeeded();
-        const detail = (result as any).restart_error ? `: ${(result as any).restart_error}` : "";
+        const detail = result.restart_error ? `: ${result.restart_error}` : "";
         showToast(applyFailMessage(detail), "error");
       }
       await onChanged();
@@ -478,7 +478,7 @@ function QrOnboardingPanel({
               disabled={phase === "waiting" || phase === "applying"}
             >
                {dmPolicyOptions.map((opt) => (
-                 <option key={opt.value} value={opt.value}>{(tCh as any)?.[opt.labelKey] ?? opt.value}</option>
+                  <option key={opt.value} value={opt.value}>{(tCh as Record<string, string | undefined>)?.[opt.labelKey] ?? opt.value}</option>
                ))}
             </select>
           </div>

@@ -53,7 +53,7 @@ _REVEAL_MAX_PER_WINDOW = 5
 _REVEAL_WINDOW_SECONDS = 30
 
 # Rate limiter for the provider connectivity probe (POST /api/providers/test)
-_provider_test_timestamps: List[float] = []
+_provider_test_timestamps: list[float] = []
 _PROVIDER_TEST_MAX_PER_WINDOW = 10
 _PROVIDER_TEST_WINDOW_SECONDS = 60
 

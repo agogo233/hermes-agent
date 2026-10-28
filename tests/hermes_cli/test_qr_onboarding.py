@@ -180,7 +180,7 @@ def test_weixin_supersede_same_profile(monkeypatch):
     ws._weixin_onboarding_sessions.clear()
 
     with patch.object(ws.secrets, "token_urlsafe", side_effect=["old-id", "new-id"]):
-        old = asyncio.run(ws.start_weixin_onboarding(profile="default"))
+        asyncio.run(ws.start_weixin_onboarding(profile="default"))
         new = asyncio.run(ws.start_weixin_onboarding(profile="default"))
 
     # Old record was mutated in-place by supersede; verify via the dict.
@@ -344,7 +344,7 @@ def test_qqbot_supersede_same_profile(monkeypatch):
     ws._qqbot_onboarding_sessions.clear()
 
     with patch.object(ws.secrets, "token_urlsafe", side_effect=["old-q", "new-q"]):
-        old = asyncio.run(ws.start_qqbot_onboarding(profile="default"))
+        asyncio.run(ws.start_qqbot_onboarding(profile="default"))
         new = asyncio.run(ws.start_qqbot_onboarding(profile="default"))
 
     old_record = ws._qqbot_onboarding_sessions.get("old-q")

@@ -297,10 +297,10 @@ async def _api_get(session: aiohttp.ClientSession, *, base_url: str, endpoint: s
 
 
 async def fetch_bot_qrcode(
-    session: "aiohttp.ClientSession",
+    session: aiohttp.ClientSession,
     *,
     bot_type: str = "3",
-) -> Tuple[str, str]:
+) -> tuple[str, str]:
     """Fetch a fresh iLink bot QR code payload.
 
     Returns ``(qrcode_value, qrcode_img_content)``. Raises on HTTP or
@@ -321,11 +321,11 @@ async def fetch_bot_qrcode(
 
 
 async def poll_qr_status(
-    session: "aiohttp.ClientSession",
+    session: aiohttp.ClientSession,
     *,
     base_url: str,
     qrcode_value: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Poll iLink for QR login status.
 
     Returns the raw status dict (keys: ``status``, optionally

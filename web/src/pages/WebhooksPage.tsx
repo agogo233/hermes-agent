@@ -170,7 +170,7 @@ export default function WebhooksPage() {
         setRestartError(`Gateway restart failed${detail}`);
         showToast(`${t.webhooks.enabledRestartFailed}${detail}`, "error");
       }
-    } catch (e) {
+    } catch {
       showToast(`${t.webhooks.enableFailed}`, "error");
     } finally {
       setEnabling(false);
@@ -209,7 +209,7 @@ export default function WebhooksPage() {
       setCreated({ url: res.url, secret: res.secret });
       resetForm();
       loadWebhooks();
-    } catch (e) {
+    } catch {
       showToast(`${t.webhooks.createFailed}`, "error");
     } finally {
       setCreating(false);
@@ -228,7 +228,7 @@ export default function WebhooksPage() {
           "success",
         );
         loadWebhooks();
-      } catch (e) {
+      } catch {
         showToast(`${t.webhooks.error}`, "error");
       } finally {
         setTogglingName(null);
