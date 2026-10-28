@@ -11,7 +11,19 @@ import os
 import time
 
 import pytest
-import yaml
+import io
+
+from ruamel.yaml import YAML as _RUAMEL
+
+
+def _ydump(data) -> str:
+    buf = io.StringIO()
+    _RUAMEL().dump(data, buf)
+    return buf.getvalue()
+
+
+def _y(text: str):
+    return _RUAMEL().load(text)
 
 
 _VALID_WORKER_BOT_TOKEN = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ_1234"
@@ -69,7 +81,7 @@ def _write_telegram_cfg(home, home_channel=None):
     if home_channel is not None:
         platforms["telegram"]["home_channel"] = home_channel
     (home / "config.yaml").write_text(
-        yaml.safe_dump({"platforms": platforms}), encoding="utf-8"
+        _ydump({"platforms": platforms}), encoding="utf-8"
     )
 
 
@@ -81,7 +93,7 @@ class TestPutHomeChannel:
         )
         assert resp.status_code == 200
 
-        cfg = yaml.safe_load(
+        cfg = _y(
             (isolated_profiles["default"] / "config.yaml").read_text()
         ) or {}
         hc = cfg["platforms"]["telegram"]["home_channel"]
@@ -123,7 +135,7 @@ class TestPutHomeChannel:
         assert resp.status_code == 200
 
         # The key is deleted (not ``home_channel: null``).
-        cfg = yaml.safe_load(
+        cfg = _y(
             (isolated_profiles["default"] / "config.yaml").read_text()
         ) or {}
         assert "home_channel" not in cfg["platforms"]["telegram"]
@@ -142,7 +154,7 @@ class TestPutHomeChannel:
             json={"clear_home_channel": True, "home_channel": {"chat_id": "555"}},
         )
         assert resp.status_code == 200
-        cfg = yaml.safe_load(
+        cfg = _y(
             (isolated_profiles["default"] / "config.yaml").read_text()
         ) or {}
         assert "home_channel" not in cfg["platforms"]["telegram"]
@@ -177,7 +189,7 @@ class TestHomeChannelSource:
             encoding="utf-8",
         )
         (worker_home / "config.yaml").write_text(
-            yaml.safe_dump({"platforms": {"telegram": {"enabled": True}}}),
+            _ydump({"platforms": {"telegram": {"enabled": True}}}),
             encoding="utf-8",
         )
         worker_payload = client.get(
@@ -230,13 +242,13 @@ class TestProfileIsolation:
             },
         )
 
-        worker_cfg = yaml.safe_load(
+        worker_cfg = _y(
             (isolated_profiles["worker_alpha"] / "config.yaml").read_text()
         ) or {}
         assert worker_cfg["platforms"]["telegram"]["home_channel"]["chat_id"] == "111"
 
         # The default profile must stay untouched.
-        root_cfg = yaml.safe_load(
+        root_cfg = _y(
             (isolated_profiles["default"] / "config.yaml").read_text()
         ) or {}
         assert "home_channel" not in (root_cfg.get("platforms") or {}).get(

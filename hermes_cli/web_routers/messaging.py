@@ -1186,7 +1186,7 @@ async def _weixin_onboarding_loop(
     record: _WeixinOnboardingSession,
 ) -> None:
     """Run the QR scan loop for a single weixin onboarding session."""
-    from gateway.platforms.weixin import fetch_bot_qrcode, poll_qr_status, save_weixin_account, ILINK_BASE_URL
+    from plugins.platforms.weixin.adapter import fetch_bot_qrcode, poll_qr_status, save_weixin_account, ILINK_BASE_URL
 
     qrcode_value = ""
     current_base_url = ILINK_BASE_URL
@@ -1297,7 +1297,7 @@ async def start_weixin_onboarding(profile: Optional[str] = None):
 
     async def _run():
         import aiohttp
-        from gateway.platforms.weixin import _make_ssl_connector
+        from plugins.platforms.weixin.adapter import _make_ssl_connector
         async with aiohttp.ClientSession(trust_env=True, connector=_make_ssl_connector()) as sess:
             await _weixin_onboarding_loop(sess, hermes_home, record)
 
@@ -1468,13 +1468,13 @@ def _run_qqbot_onboarding(
     hermes_home: str,
 ) -> None:
     """Synchronous QR registration loop for QQBot, run in a daemon thread."""
-    from gateway.platforms.qqbot.onboard import (
+    from plugins.platforms.qqbot.onboard import (
         BindStatus,
         _create_bind_task,
         _poll_bind_result,
         build_connect_url,
     )
-    from gateway.platforms.qqbot.crypto import decrypt_secret
+    from plugins.platforms.qqbot.crypto import decrypt_secret
 
     deadline = time.monotonic() + _QQBOT_ONBOARDING_TTL_SECONDS
     refresh_count = 0

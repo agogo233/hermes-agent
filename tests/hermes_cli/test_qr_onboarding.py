@@ -84,8 +84,8 @@ def test_weixin_get_status_returns_non_secret_payload(monkeypatch):
 
     with (
         patch.object(ws.secrets, "token_urlsafe", return_value="p1"),
-        patch("gateway.platforms.weixin.fetch_bot_qrcode", new=AsyncMock(return_value=(_FAKE_QR_VALUE, _FAKE_QR_URL))),
-        patch("gateway.platforms.weixin.poll_qr_status", new=AsyncMock(side_effect=Exception("stop"))),
+        patch("plugins.platforms.weixin.adapter.fetch_bot_qrcode", new=AsyncMock(return_value=(_FAKE_QR_VALUE, _FAKE_QR_URL))),
+        patch("plugins.platforms.weixin.adapter.poll_qr_status", new=AsyncMock(side_effect=Exception("stop"))),
     ):
         start = asyncio.run(ws.start_weixin_onboarding())
 
@@ -115,9 +115,9 @@ def test_weixin_apply_saves_credentials(monkeypatch, tmp_path):
 
     with (
         patch.object(ws.secrets, "token_urlsafe", return_value="p2"),
-        patch("gateway.platforms.weixin.fetch_bot_qrcode", new=AsyncMock(return_value=(_FAKE_QR_VALUE, _FAKE_QR_URL))),
-        patch("gateway.platforms.weixin.poll_qr_status", new=AsyncMock(side_effect=Exception("stop"))),
-        patch("gateway.platforms.weixin.save_weixin_account"),
+        patch("plugins.platforms.weixin.adapter.fetch_bot_qrcode", new=AsyncMock(return_value=(_FAKE_QR_VALUE, _FAKE_QR_URL))),
+        patch("plugins.platforms.weixin.adapter.poll_qr_status", new=AsyncMock(side_effect=Exception("stop"))),
+        patch("plugins.platforms.weixin.adapter.save_weixin_account"),
     ):
         start = asyncio.run(ws.start_weixin_onboarding())
 
