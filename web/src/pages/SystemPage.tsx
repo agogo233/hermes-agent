@@ -44,6 +44,7 @@ import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { HermesConsoleModal } from "@/components/HermesConsoleModal";
 import { cn, themedBody } from "@/lib/utils";
+import { useI18n } from "@/i18n";
 import { api } from "@/lib/api";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import {
@@ -706,9 +707,6 @@ export default function SystemPage() {
 
   const gatewayRunning = status?.gateway_running;
   const canUpdateHermes = status?.can_update_hermes !== false;
-  const activeMemoryProvider = memory?.active
-    ? memory.providers.find((provider) => provider.name === memory.active)
-    : null;
   const validEvents = hooks?.valid_events?.length
     ? hooks.valid_events
     : HOOK_EVENTS_FALLBACK;
@@ -1641,3 +1639,5 @@ export default function SystemPage() {
     </div>
   );
 }
+
+
