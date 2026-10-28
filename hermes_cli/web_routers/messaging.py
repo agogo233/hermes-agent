@@ -1220,7 +1220,7 @@ async def _weixin_onboarding_loop(
             status_resp = await poll_qr_status(
                 session, base_url=current_base_url, qrcode_value=qrcode_value
             )
-        except Exception as exc:
+        except Exception:  # health: allow BLE001 -- polling retry: any status poll failure sleeps and retries until the deadline
             await asyncio.sleep(1)
             continue
 
@@ -1278,7 +1278,7 @@ async def start_weixin_onboarding(profile: Optional[str] = None):
     with _config_profile_scope(effective_profile):
         hermes_home = get_hermes_home()
         expires_at_ts = time.time() + _WEIXIN_ONBOARDING_TTL_SECONDS
-        expires_at = datetime.fromtimestamp(expires_at_ts, timezone.utc).isoformat().replace("+00:00", "Z")
+        expires_at = datetime.fromtimestamp(expires_at_ts, UTC).isoformat().replace("+00:00", "Z")
         _prune_weixin_onboarding_sessions()
         _supersede_weixin_onboarding_sessions(effective_profile)
 
@@ -1539,7 +1539,7 @@ async def start_qqbot_onboarding(profile: Optional[str] = None):
     with _config_profile_scope(effective_profile):
         hermes_home = get_hermes_home()
         expires_at_ts = time.time() + _QQBOT_ONBOARDING_TTL_SECONDS
-        expires_at = datetime.fromtimestamp(expires_at_ts, timezone.utc).isoformat().replace("+00:00", "Z")
+        expires_at = datetime.fromtimestamp(expires_at_ts, UTC).isoformat().replace("+00:00", "Z")
         _prune_qqbot_onboarding_sessions()
         _supersede_qqbot_onboarding_sessions(effective_profile)
 
