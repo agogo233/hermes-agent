@@ -120,6 +120,7 @@ def build_stamp(
     source: str = "local",
     distribution: str | None = None,
     runtime_dir: str | None = None,
+    pm_runtime: str | None = None,
     channel_request: dict | None = None,
 ) -> dict:
     """Build a stamp dict from explicit args, filling gaps from git/env.
@@ -137,6 +138,10 @@ def build_stamp(
     layout: the runtime dir is the payload dir, not a child of the install
     root. ``..`` keeps it relocatable — an absolute path would break under
     MSIX translocation.
+
+    ``pm_runtime`` is an ABSOLUTE path to the resident PM runtime a sealed
+    nix/docker build ships; ``pm.runtime._resident_runtime`` reads the
+    ``pmRuntime`` field to locate that interpreter + site-packages.
     """
     if update_mechanism not in UPDATE_MECHANISMS:
         raise SystemExit(
@@ -270,8 +275,8 @@ def build_stamp(
     if channel_request is not None:
         stamp["channelBuild"] = channel_request
         stamp["displayVersion"] = f'{base_version} ({channel_request["channel"]} #{channel_request["sequence"]}, {commit[:7]})'
-    if runtime_dir is not None:
-        stamp["runtimeDir"] = runtime_dir
+    optional = (("runtimeDir", runtime_dir), ("pmRuntime", pm_runtime))
+    stamp.update({key: value for key, value in optional if value is not None})
     return stamp
 
 
@@ -317,6 +322,14 @@ def main() -> int:
         "payload passes '..' (the payload dir is the install root's "
         "parent). Omitted for source/docker/nix stamps.",
     )
+    parser.add_argument(
+        "--pm-runtime",
+        default=None,
+        help="ABSOLUTE path to the packaged PM runtime dir (the resident venv "
+        "a sealed nix/docker build ships). Baked into the stamp as pmRuntime; "
+        "pm.runtime._resident_runtime() reads it to find the resident "
+        "interpreter. Omitted for source/self-update stamps.",
+    )
     args = parser.parse_args()
 
     stamp = write_stamp(
@@ -332,6 +345,7 @@ def main() -> int:
         source=args.source,
         distribution=args.distribution,
         runtime_dir=args.runtime_dir,
+        pm_runtime=args.pm_runtime,
         channel_request=json.loads(args.channel_request.read_text(encoding="utf-8-sig")) if args.channel_request else None,
     )
 
