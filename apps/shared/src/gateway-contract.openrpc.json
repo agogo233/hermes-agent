@@ -36563,6 +36563,50 @@
         "title": "SessionBranchWholeResult",
         "type": "object"
       },
+      "SessionBulkDeleteParams": {
+        "additionalProperties": false,
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ids",
+            "type": "array"
+          },
+          "include_compression_chain": {
+            "default": true,
+            "title": "Include Compression Chain",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "SessionBulkDeleteParams",
+        "type": "object"
+      },
+      "SessionBulkDeleteResult": {
+        "additionalProperties": false,
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "integer"
+          },
+          "skipped": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Skipped",
+            "type": "array"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "title": "SessionBulkDeleteResult",
+        "type": "object"
+      },
       "SessionCloseParams": {
         "additionalProperties": false,
         "properties": {
@@ -37767,6 +37811,27 @@
           }
         },
         "title": "SessionCwdSetResult",
+        "type": "object"
+      },
+      "SessionDeleteEmptyParams": {
+        "additionalProperties": false,
+        "description": "No params: the owner deletes every empty, ended, non-archived session in its own store.",
+        "properties": {},
+        "title": "SessionDeleteEmptyParams",
+        "type": "object"
+      },
+      "SessionDeleteEmptyResult": {
+        "additionalProperties": false,
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "title": "SessionDeleteEmptyResult",
         "type": "object"
       },
       "SessionDeleteParams": {
@@ -49287,6 +49352,42 @@
       }
     },
     {
+      "name": "session.bulk_delete",
+      "summary": "Operator-gated: the owner deletes the requested session ids (compression chains expanded, active write guards skipped) on its own store connection.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/SessionBulkDeleteParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/SessionBulkDeleteResult"
+        }
+      }
+    },
+    {
+      "name": "session.bulk_prune",
+      "summary": "Operator-gated: the dashboard's POST /api/sessions/prune forwarded to the owner. Same filters / never_active_days contract as session.prune, but operator-gated instead of native-owner-gated, so an authenticated dashboard user can run it while a separate gateway owns the store.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/SessionPruneParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/SessionPruneResult"
+        }
+      }
+    },
+    {
       "name": "session.create",
       "summary": "",
       "params": [
@@ -49301,6 +49402,24 @@
         "name": "result",
         "schema": {
           "$ref": "#/components/schemas/CanonicalSnapshot"
+        }
+      }
+    },
+    {
+      "name": "session.delete_empty",
+      "summary": "Operator-gated: the owner deletes every empty, ended, non-archived session in its own store (the same sweep the dashboard's DELETE /api/sessions/empty forwards).",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/SessionDeleteEmptyParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/SessionDeleteEmptyResult"
         }
       }
     },

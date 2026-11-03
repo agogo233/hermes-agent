@@ -128,6 +128,41 @@ canonical_method("session.prune", params=SessionPruneParams, result=SessionPrune
                      "selected, skipping busy sessions and retained reset owners.")
 
 
+class SessionDeleteEmptyParams(Params):
+    """No params: the owner deletes every empty, ended, non-archived session in its own store."""
+
+
+class SessionDeleteEmptyResult(Result):
+    deleted: int
+
+
+canonical_method("session.delete_empty", params=SessionDeleteEmptyParams, result=SessionDeleteEmptyResult,
+                 doc="Operator-gated: the owner deletes every empty, ended, non-archived session in its own "
+                     "store (the same sweep the dashboard's DELETE /api/sessions/empty forwards).")
+
+
+class SessionBulkDeleteParams(Params):
+    ids: list[str]
+    include_compression_chain: bool = True
+
+
+class SessionBulkDeleteResult(Result):
+    deleted: int
+    skipped: list[str] = []
+
+
+canonical_method("session.bulk_delete", params=SessionBulkDeleteParams, result=SessionBulkDeleteResult,
+                 doc="Operator-gated: the owner deletes the requested session ids (compression chains expanded, "
+                     "active write guards skipped) on its own store connection.")
+
+
+canonical_method("session.bulk_prune", params=SessionPruneParams, result=SessionPruneResult,
+                 doc="Operator-gated: the dashboard's POST /api/sessions/prune forwarded to the owner. Same "
+                     "filters / never_active_days contract as session.prune, but operator-gated instead of "
+                     "native-owner-gated, so an authenticated dashboard user can run it while a separate "
+                     "gateway owns the store.")
+
+
 class CommandObserveParams(Params):
     session_id: str
     name: str

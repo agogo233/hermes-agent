@@ -74,9 +74,12 @@ _PRUNE_NUM_FILTERS = (
 _PRUNE_ROW_KEYS = ("id", "source", "title", "model", "started_at", "last_active", "message_count")
 
 
-def _prune_sessions(body: SessionPrune):
-    """Delete ended sessions matching filters (mirrors `hermes sessions prune`)."""
-    from hermes_cli.config import get_hermes_home
+def _prune_filters_from_body(body: SessionPrune) -> dict:
+    """Build the SessionDB.prune_sessions filters dict from a SessionPrune body.
+
+    Shared by the offline sweep and the owner-forward: the same conversion runs
+    whether the delete lands on this process's store or the gateway owner's.
+    """
     has_window = body.started_before is not None or body.started_after is not None
     if body.older_than_days is not None and body.older_than_days < 1 and not has_window:
         raise HTTPException(status_code=400, detail="older_than_days must be >= 1")
@@ -88,15 +91,28 @@ def _prune_sessions(body: SessionPrune):
     effective_older_than = body.older_than_days
     if has_window or (attr_filters_set and "older_than_days" not in body.model_fields_set):
         effective_older_than = None
+    return {
+        "older_than_days": effective_older_than, "started_before": body.started_before,
+        "started_after": body.started_after,
+        "archived": None if body.include_archived else False,
+        **{f: (getattr(body, f) or None) for f in _PRUNE_STR_FILTERS},
+        **{f: getattr(body, f) for f in _PRUNE_NUM_FILTERS}}
+
+
+def _prune_sessions(body: SessionPrune, db=None):
+    """Delete ended sessions matching filters (mirrors `hermes sessions prune`).
+
+    When *db* is supplied (the live owner's store), the sweep runs on that single-writer
+    connection and is not closed here; otherwise a fresh read/write store is opened and
+    closed for the call.
+    """
+    from hermes_cli.config import get_hermes_home
+    filters = _prune_filters_from_body(body)
     profile_home = _cron_profile_home(body.profile)[1] if body.profile else get_hermes_home()
-    db = _open_session_db_for_profile(body.profile, read_only=body.dry_run)
+    own_db = db is None
+    if own_db:
+        db = _open_session_db_for_profile(body.profile, read_only=body.dry_run)
     try:
-        filters = {
-            "older_than_days": effective_older_than, "started_before": body.started_before,
-            "started_after": body.started_after,
-            "archived": None if body.include_archived else False,
-            **{f: (getattr(body, f) or None) for f in _PRUNE_STR_FILTERS},
-            **{f: getattr(body, f) for f in _PRUNE_NUM_FILTERS}}
         skipped_open = db.count_open_prune_matches(**filters)
         if body.dry_run:
             # Same whole-lineage selection prune_sessions applies, so the preview lists what it deletes.
@@ -464,7 +480,7 @@ async def search_sessions(
 
 
 @manage_router.post("/api/sessions/bulk-delete")
-async def bulk_delete_sessions_endpoint(body: BulkDeleteSessions):
+async def bulk_delete_sessions_endpoint(body: BulkDeleteSessions, request: Request):
     """Delete every session in ``body.ids`` in one transaction (POST: many
     clients refuse a DELETE body).
 
@@ -483,9 +499,18 @@ async def bulk_delete_sessions_endpoint(body: BulkDeleteSessions):
         raise HTTPException(status_code=400, detail="ids must contain at most 500 entries")
     profile = destructive_profile(body.profile, "POST /api/sessions/bulk-delete")
     skipped: list[str] = []  # rows a live turn/compression still owns; the UI must keep them listed
-    deleted = await asyncio.to_thread(_with_db, profile, lambda db: db.delete_sessions(
-        body.ids, exclude_active_write_guards=True, skipped_ids=skipped,
-        include_compression_chain=True), read_only=False)
+    result = await _run_destructive_sweep(
+        request, profile,
+        lambda db: db.delete_sessions(
+            body.ids, exclude_active_write_guards=True, skipped_ids=skipped,
+            include_compression_chain=True),
+        rpc_method='session.bulk_delete', rpc_params={'ids': body.ids})
+    # The owner forward returns {deleted, skipped}; the offline/composed path returns the
+    # int and populates *skipped* in place. Normalize so the UI reads one shape.
+    if isinstance(result, dict):
+        deleted, skipped = result['deleted'], result.get('skipped') or skipped
+    else:
+        deleted = result
     return {"ok": True, "deleted": deleted, "skipped_active": skipped}
 
 
@@ -517,7 +542,7 @@ async def count_empty_sessions_endpoint(profile: Optional[str] = None):
 
 
 @manage_router.delete("/api/sessions/empty")
-async def delete_empty_sessions_endpoint(profile: Optional[str] = None):
+async def delete_empty_sessions_endpoint(request: Request, profile: Optional[str] = None):
     """Delete every empty, ended, non-archived session in one transaction.
 
     "Empty" means NO ``messages`` rows at all — a rewound/compacted chat reads
@@ -529,9 +554,13 @@ async def delete_empty_sessions_endpoint(profile: Optional[str] = None):
     parents are orphaned, not cascade-deleted. See #95868.
     """
     profile = destructive_profile(profile, "DELETE /api/sessions/empty")
-    deleted = await asyncio.to_thread(
-        _with_db, profile,
-        lambda db: db.delete_empty_sessions(sessions_dir=_session_files_dir(profile)), read_only=False)
+    deleted = await _run_destructive_sweep(
+        request, profile,
+        lambda db: db.delete_empty_sessions(sessions_dir=_session_files_dir(profile)),
+        rpc_method='session.delete_empty')
+    # The owner forward returns {'deleted': N}; the offline/composed path returns the int.
+    if isinstance(deleted, dict):
+        deleted = deleted['deleted']
     return {"ok": True, "deleted": deleted}
 
 
@@ -894,6 +923,60 @@ def _owner_db_for(request: Request, profile: Optional[str]):
     return getattr(authority, "db", None)
 
 
+async def _run_destructive_sweep(request: Request, profile: Optional[str], fn: Callable,
+                                 *, rpc_method: Optional[str] = None, rpc_params: Optional[dict] = None):
+    """Run a destructive bulk session sweep on the live owner's store when a composed gateway
+    serves *profile*, else under the offline exclusive-maintenance reservation.
+
+    A separately launched dashboard is not the store owner, so the offline path's
+    exclusive-maintenance reservation can never win while the gateway holds the profile: the
+    bulk sweeps (delete empty, bulk delete, prune) 409'd where the per-session mutations
+    forwarded to the owner instead (#138915). The owner's own store connection is the single
+    writer, so run the sweep there (see backfill_session_owner_profiles); with no owner the
+    offline path is unchanged.
+
+    When *rpc_method* is given, a standalone dashboard forwards the sweep to the live gateway
+    owner over the control socket instead of taking the offline reservation (which loses to
+    any owner holding the lock). With no endpoint the offline path is unchanged.
+    """
+    from hermes_cli.gateway_client import GatewayRPCError
+    from hermes_cli.web_server_sessions import _forward_bulk_sweep, _NoGatewayEndpoint
+
+    owner_db = _owner_db_for(request, profile)
+    if owner_db is not None:
+        return await asyncio.to_thread(fn, owner_db)
+
+    if rpc_method is not None:
+        try:
+            return await _forward_bulk_sweep(request, profile, rpc_method, rpc_params or {})
+        except _NoGatewayEndpoint as exc:
+            discovery = exc.args[0] if exc.args else None
+            try:
+                return await asyncio.to_thread(_with_db, profile, fn, read_only=False)
+            except HTTPException as inner:
+                # The reservation lost behind any verdict but ``absent`` answers a retryable
+                # 503 that names discovery's reason and keeps the reservation's remedy.
+                from gateway.runtime_ownership import OwnershipConflict
+                if discovery is None or discovery.state == 'absent' or not isinstance(
+                        inner.__cause__, OwnershipConflict):
+                    raise
+                known = ''.join(f', {value}' for value in (discovery.reason_code, discovery.detail) if value)
+                reason = discovery.reason_code or discovery.state
+                raise HTTPException(
+                    status_code=503,
+                    detail=f'owner_unavailable: {reason}: {inner.detail}{known}') from inner
+        except HTTPException:
+            raise
+        except GatewayRPCError as exc:
+            # The owner's own refusal verdict: the same reason → status map the per-session
+            # forward answers with, so a draining owner or an owner predating this verb is a
+            # retryable refusal, never a bare 500.
+            from hermes_cli.web_server_sessions import _MUTATION_REFUSAL_STATUS
+            raise HTTPException(status_code=_MUTATION_REFUSAL_STATUS.get(str(exc), 409), detail=str(exc)) from exc
+
+    return await asyncio.to_thread(_with_db, profile, fn, read_only=False)
+
+
 @manage_router.post("/api/sessions/owner-backfill")
 async def backfill_session_owner_profiles(body: SessionOwnerBackfill, request: Request):
     """Stamp legacy ``profile_name = NULL`` rows with the serving-profile identity.
@@ -982,7 +1065,7 @@ async def export_session_endpoint(session_id: str, profile: Optional[str] = None
 
 
 @manage_router.post("/api/sessions/prune")
-async def prune_sessions_endpoint(body: SessionPrune):
+async def prune_sessions_endpoint(body: SessionPrune, request: Request):
     """Delete ended sessions matching filters without blocking the event loop."""
     if body.dry_run:
         return await asyncio.to_thread(_prune_sessions, body)
@@ -990,5 +1073,13 @@ async def prune_sessions_endpoint(body: SessionPrune):
     # keeps working unnamed (it is the preview the confirm dialog reads).
     body = body.model_copy(update={
         "profile": destructive_profile(body.profile, "POST /api/sessions/prune")})
-    from hermes_cli.web_server_sessions import _with_session_maintenance
-    return await asyncio.to_thread(_with_session_maintenance, body.profile, _prune_sessions, body)
+    filters = _prune_filters_from_body(body)
+    result = await _run_destructive_sweep(
+        request, body.profile,
+        lambda db: _prune_sessions(body, db=db),
+        rpc_method='session.bulk_prune', rpc_params={'filters': filters})
+    if isinstance(result, dict) and 'deleted' in result:
+        # The owner forward reports the deleted count only; the skipped-open detail stays
+        # local-path-only (the UI omits its note when the count is 0).
+        return {'ok': True, 'removed': result['deleted'], 'skipped_open': 0}
+    return result

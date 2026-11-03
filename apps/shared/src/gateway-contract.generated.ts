@@ -4788,6 +4788,19 @@ export interface SessionPruneResult {
   routing_deleted?: number | null
   skipped?: number | null
 }
+/** No params: the owner deletes every empty, ended, non-archived session in its own store. */
+export type SessionDeleteEmptyParams = Record<string, never>
+export interface SessionDeleteEmptyResult {
+  deleted: number
+}
+export interface SessionBulkDeleteParams {
+  ids: string[]
+  include_compression_chain?: boolean
+}
+export interface SessionBulkDeleteResult {
+  deleted: number
+  skipped?: string[]
+}
 export interface CommandObserveParams {
   session_id: string
   name: string
@@ -6998,7 +7011,13 @@ export interface CanonicalRpcMethods {
   'runtime.describe': { params: RuntimeDescribeParams; result: RuntimeDescribeResult }
   /** The classic CLI's /goal, /subgoal, /loop, /heartbeat manager calls (state writes, the goal judge, quality gates), run by the owner on the session's row. */
   'session.automation': { params: SessionAutomationParams; result: SessionAutomationResult }
+  /** Operator-gated: the owner deletes the requested session ids (compression chains expanded, active write guards skipped) on its own store connection. */
+  'session.bulk_delete': { params: SessionBulkDeleteParams; result: SessionBulkDeleteResult }
+  /** Operator-gated: the dashboard's POST /api/sessions/prune forwarded to the owner. Same filters / never_active_days contract as session.prune, but operator-gated instead of native-owner-gated, so an authenticated dashboard user can run it while a separate gateway owns the store. */
+  'session.bulk_prune': { params: SessionPruneParams; result: SessionPruneResult }
   'session.create': { params: CanonicalCreateParams; result: CanonicalSnapshot }
+  /** Operator-gated: the owner deletes every empty, ended, non-archived session in its own store (the same sweep the dashboard's DELETE /api/sessions/empty forwards). */
+  'session.delete_empty': { params: SessionDeleteEmptyParams; result: SessionDeleteEmptyResult }
   /** Drop this connection's subscription; a stale subscription id answers detached=false. end_reason (snake_case): the viewer is closing the conversation; the last viewer leaving an idle local session ends its row with that reason. */
   'session.detach': { params: SessionDetachParams; result: SessionDetachResult }
   'session.events.since': { params: CanonicalEventsParams; result: CanonicalEventsResult }
@@ -7060,7 +7079,10 @@ export const CANONICAL_RPC_METHODS = [
   'rollback.session_diff',
   'runtime.describe',
   'session.automation',
+  'session.bulk_delete',
+  'session.bulk_prune',
   'session.create',
+  'session.delete_empty',
   'session.detach',
   'session.events.since',
   'session.export',

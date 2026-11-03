@@ -261,6 +261,60 @@ async def _mutate_via_gateway_owner(profile, actor, params):
         raise HTTPException(status_code=503, detail='owner_unreachable') from exc
 
 
+class _NoGatewayEndpoint(Exception):
+    """No ready gateway owner to forward to: the offline reservation decides."""
+
+
+async def _forward_bulk_sweep(request, profile, method, params):
+    """Forward a bulk sweep (delete empty / bulk delete / prune) to the live gateway owner.
+
+    While a gateway serves the same home, a separately launched dashboard is not the
+    store owner, so the offline exclusive-maintenance reservation can never win and
+    every write action dies on a bare 409 (#138915). The owner exposes the same
+    operator-gated verbs over the control socket; with no endpoint the offline store's
+    reservation decides (no endpoint does not prove a live owner — a stale bad-mode
+    socket, a parked secondary read ``inaccessible`` with the lock free). When the
+    reservation loses and discovery read anything but ``absent`` (a control timeout,
+    a profile mismatch, one starting or draining), the edit answers 503 with
+    discovery's reason rather than the bare 409 (#144141).
+    """
+    from fastapi import HTTPException
+    from hermes_cli.gateway_client import GatewayClientError, GatewayRPCError, connect_gateway
+    from hermes_cli.gateway_runtime import discover_gateway_endpoint
+    from hermes_cli.gateway_runtime_discovery import DiscoveryError
+    from hermes_cli.web_server_cron import _cron_profile_home
+    from hermes_state import _default_db_path
+
+    home = Path(_cron_profile_home(profile)[1]) if profile else Path(_default_db_path()).parent
+    discovery = await asyncio.to_thread(discover_gateway_endpoint, home, timeout=1.5)
+    endpoint = discovery.endpoint
+    if endpoint is None:
+        raise _NoGatewayEndpoint(discovery)
+    if not getattr(endpoint, 'control_home', True):
+        # The selected home answered on its own socket (a multiplexer-served profile already
+        # names the multiplexer root). Pin it, so the ticket is minted on the socket that just
+        # identified as this profile's owner, never on the dashboard launch home's.
+        from dataclasses import replace
+        endpoint = replace(endpoint, control_home=str(home.expanduser().resolve()))
+
+    # The ticket names the dashboard's authenticated principal — the socket UID would
+    # be refused by the operator gate on any store-wide verb.
+    from gateway.owner_identity import host_owner_subject
+    _, actor = _session_mutation_context(request, profile)
+    subject = None if actor.subject == host_owner_subject() else actor.subject
+    try:
+        async with connect_gateway(endpoint=endpoint, subject=subject) as client:
+            return await client.rpc(method, **params)
+    except GatewayRPCError:
+        # The owner's own refusal verdict.
+        raise
+    except (GatewayClientError, DiscoveryError, OSError, TimeoutError) as exc:
+        # Transport, not a verdict: a refused WebSocket dial, a control socket that
+        # refuses the mint after a restart, a raw socket error or a timeout. Retrying
+        # is safe because the request reuses its request_id.
+        raise HTTPException(status_code=503, detail='owner_unreachable') from exc
+
+
 # One reason -> HTTP status map for a session mutation refusal, shared by the direct path
 # (RuntimeStoreError) and the owner forward (GatewayClientError): a storage failure is a
 # server fault (503), never a session conflict.
