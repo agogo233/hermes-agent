@@ -11,7 +11,7 @@ def _terminate_whatsapp_pairing(proc: subprocess.Popen | None) -> None:
         try:
             proc.terminate()
             proc.wait(timeout=3)
-        except Exception:
+        except Exception:  # health: allow BLE001 -- fork teardown: any proc error falls back to kill
             with contextlib.suppress(Exception):
                 proc.kill()
                 proc.wait(timeout=3)

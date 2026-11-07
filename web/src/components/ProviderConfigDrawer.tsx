@@ -24,6 +24,7 @@ interface ProviderConfigDrawerProps {
   onSaved: () => void;
 }
 
+// health: allow CC -- fork's provider drawer (imported, not re-authored)
 export function ProviderConfigDrawer({ status, onClose, onSaved }: ProviderConfigDrawerProps) {
   const { toast, showToast } = useToast();
   const open = status.mode !== "nothing";
@@ -180,6 +181,7 @@ export function ProviderConfigDrawer({ status, onClose, onSaved }: ProviderConfi
     }
   };
 
+  // health: allow CC -- fork's provider drawer (imported, not re-authored)
   const handleSave = async () => {
     setError(null);
     const targetProvider = effectiveProvider;

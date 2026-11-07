@@ -22,12 +22,19 @@ async def test_maintenance_routes_refuse_live_owner_without_changing_rows(tmp_pa
         owner.reserve([tmp_path])
         try:
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://localhost') as client:
-                for method, path, body in [('POST', 'bulk-delete', {'ids': ['ended-empty']}),
-                        ('DELETE', 'empty', None), ('POST', 'owner-backfill', {}),
-                        ('POST', 'prune', {'older_than_days': 1})]:
+                # The bulk sweeps forward to the gateway owner; when discovery reports a
+                # non-absent owner (a stale lock, one starting or draining) the offline
+                # reservation's loss answers a retryable 503 that names discovery's reason
+                # (#144141), never the bare 409. owner-backfill is not forwarded and keeps
+                # the offline reservation's 409.
+                for method, path, body, expected, detail in [
+                        ('POST', 'bulk-delete', {'ids': ['ended-empty']}, 503, 'owner_unavailable'),
+                        ('DELETE', 'empty', None, 503, 'owner_unavailable'),
+                        ('POST', 'owner-backfill', {}, 409, 'maintenance'),
+                        ('POST', 'prune', {'older_than_days': 1}, 503, 'owner_unavailable')]:
                     response = await client.request(method, '/api/sessions/' + path, json=body)
-                    assert response.status_code == 409, (path, response.text)
-                    assert 'maintenance' in response.json()['detail'].lower()
+                    assert response.status_code == expected, (path, response.text)
+                    assert detail in response.json()['detail'].lower()
                     assert db.get_session('ended-empty') == before
         finally:
             owner.close()
