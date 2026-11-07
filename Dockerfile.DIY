@@ -115,21 +115,29 @@ COPY --from=node_source /usr/local/lib/node_modules/npm /usr/local/lib/node_modu
 RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
     ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
+# 上游已切 pnpm（package.json 拒绝 npm install，root 只用 pnpm-lock.yaml）。
+# node-deps.mjs 需要 pnpm CLI 在 PATH；pnpm 12 是原生可执行，symlink 直指其二进制。
+COPY pm/ pm/
+COPY hermes_constants.py hermes_constants.py
+RUN python3 -c 'from pathlib import Path; from pm.install import ensure, installed_package; ensure("pnpm", explicit=True); Path("/usr/local/bin/pnpm").symlink_to(installed_package("pnpm").binary)' && \
+    pnpm --version
+
 WORKDIR /opt/hermes
 
 # --- 层缓存：先拷贝包清单 ---
-# hermes-ink 与 apps/shared 是 file: 工作区依赖，需整树拷贝以便 npm 解析到真实内容
-COPY package.json package-lock.json ./
+# 根包 + workspace 定义先行：pnpm frozen install 只依赖锁文件与 manifests
+# （web/ui-tui/apps/*/hermes-ink 是 pnpm workspaces，见 pnpm-workspace.yaml）。
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY web/package.json web/
 COPY ui-tui/package.json ui-tui/
 COPY ui-tui/packages/hermes-ink/ ui-tui/packages/hermes-ink/
 COPY apps/shared/ apps/shared/
+COPY scripts/build/node-deps.mjs scripts/build/pnpm-lock.mjs scripts/build/electron-runtime.mjs scripts/build/
 
-# npm 10+ 默认将 file: 依赖安装为 symlink（npm 9 的 install-as-copy 缺陷 #4828 已随
-# 上游 Node 26 消解），仍显式设置以防御未来回归。根 package.json 声明了全部
-# workspaces（web/ui-tui/apps/*/hermes-ink），单次根 install 即覆盖所有子包依赖。
-# playwright 浏览器构建期安装到非卷挂载路径（--only-shell），运行库依赖由 runtime 补齐。
-RUN npm_config_install_links=false npm install --prefer-offline --no-audit --fetch-retries=5 && \
+# node-deps.mjs 做 pnpm frozen lockfile 安装（同上游 Dockerfile），覆盖
+# web/ui-tui 两个 workspace。playwright 浏览器构建期安装到非卷挂载路径
+# （--only-shell），运行库依赖由 runtime 补齐。
+RUN node scripts/build/node-deps.mjs --source /opt/hermes --workspace ui-tui --workspace web && \
     for i in 1 2 3; do \
         npx playwright install --with-deps chromium --only-shell && break || \
         { [ "$i" = 3 ] && exit 1; echo "playwright install failed (attempt $i); retrying in 10s"; sleep 10; }; \
@@ -160,7 +168,7 @@ COPY web/ web/
 COPY ui-tui/ ui-tui/
 COPY apps/shared/ apps/shared/
 COPY scripts/build/ scripts/build/
-RUN cd web && npm run build && cd ../ui-tui && npm run build
+RUN cd web && pnpm run build && cd ../ui-tui && pnpm run build
 
 # --- 源码 ---
 # node_modules/.venv/.playwright 存活靠 .dockerignore 排除 + COPY 目录合并不删除语义；
@@ -187,8 +195,6 @@ RUN uv pip install --no-cache-dir --no-deps -e "."
 # walk(['npm']) 带入，无需单列。这里用 pm.install.ensure 而非 pm.ensure：后者在
 # 非 PM-runtime 进程里会 _request() 再引导一整套独立 runtime（连带装 uv+python），
 # 而 builder 只需要就地写入 store。
-COPY pm/ pm/
-COPY hermes_constants.py hermes_constants.py
 COPY hermes_cli/__init__.py hermes_cli/runtime_state.py hermes_cli/
 RUN python3 -c 'from pm.install import ensure; ensure("npm", explicit=True)'
 # 脚本走 stdin（python3 -）而非 heredoc：Dockerfile 解析器会把 heredoc 体里的
