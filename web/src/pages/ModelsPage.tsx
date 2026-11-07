@@ -41,6 +41,8 @@ import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { usePageHeader } from "@/contexts/usePageHeader";
 import { useI18n } from "@/i18n";
 import { PluginSlot } from "@/plugins";
+import { CustomEndpointsPanel } from "@/components/CustomEndpointsPanel";
+import { ProviderEndpointsPanel } from "@/components/ProviderEndpointsPanel";
 import { ModelPickerDialog } from "@/components/ModelPickerDialog";
 import { ModelReloadConfirm } from "@/components/ModelReloadConfirm";
 import { errorMessage } from "@/lib/api-error";
@@ -1269,6 +1271,8 @@ export default function ModelsPage() {
   return (
     <div className="flex min-w-0 max-w-full flex-col gap-6">
       <PluginSlot name="models:top" />
+      <ProviderEndpointsPanel onChanged={onAssigned} />
+      <CustomEndpointsPanel onChanged={onAssigned} />
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-2">
         <ModelSettingsPanel

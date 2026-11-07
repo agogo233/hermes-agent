@@ -714,6 +714,48 @@ export const api = {
       body: JSON.stringify({ key }),
     }),
 
+  // Custom model endpoints (OpenAI-compatible ``providers`` entries)
+  getCustomEndpoints: (profile = getManagementProfile()) =>
+    fetchJSON<CustomEndpointsResponse>(
+      appendProfileParam("/api/providers/custom-endpoints", profile),
+    ),
+  saveCustomEndpoint: (body: CustomEndpointUpdate, profile = getManagementProfile()) =>
+    fetchJSON<CustomEndpointsResponse>(
+      appendProfileParam("/api/providers/custom-endpoints", profile),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    ),
+  validateCustomEndpoint: (body: CustomEndpointUpdate) =>
+    fetchJSON<CustomEndpointValidationResponse>("/api/providers/custom-endpoints/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  testProvider: (body: { provider: string; base_url: string; api_key?: string; model?: string }) =>
+    fetchJSON<{ ok: boolean; reachable: boolean; message: string; models: string[] }>(
+      "/api/providers/validate",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // The live-probe route validates an env var shape: OPENAI_BASE_URL probes
+        // an OpenAI-compatible endpoint's connectivity and model list.
+        body: JSON.stringify({ key: "OPENAI_BASE_URL", value: body.base_url, api_key: body.api_key }),
+      },
+    ),
+  activateCustomEndpoint: (id: string, profile = getManagementProfile()) =>
+    fetchJSON<{ ok: boolean; provider: string; model: string }>(
+      appendProfileParam(`/api/providers/custom-endpoints/${encodeURIComponent(id)}/activate`, profile),
+      { method: "POST" },
+    ),
+  deleteCustomEndpoint: (id: string, profile = getManagementProfile()) =>
+    fetchJSON<CustomEndpointsResponse>(
+      appendProfileParam(`/api/providers/custom-endpoints/${encodeURIComponent(id)}`, profile),
+      { method: "DELETE" },
+    ),
+
   // Cron jobs
   getCronJobs: (profile = "all") =>
     fetchJSON<CronJob[]>(`/api/cron/jobs?profile=${encodeURIComponent(profile)}`),
@@ -2165,6 +2207,9 @@ export interface EnvVarInfo {
   channel_managed?: boolean;
   /** True when this key is set in .env but not in any catalog (user-added custom key). */
   custom?: boolean;
+  /** Provider-grouping hints derived from the unified provider catalog. */
+  provider?: string;
+  provider_label?: string;
 }
 
 export interface TelegramOnboardingStartResponse {
@@ -2516,6 +2561,48 @@ export interface ModelInfoResponse {
 export type { ModelOptionProvider, ModelOptionsResult };
 
 export type { AuxiliaryModelsResponse, AuxiliaryTaskAssignment } from "./api-aux";
+
+// ── Custom model endpoints ───────────────────────────────────────────
+
+export interface CustomEndpoint {
+  api_key_preview?: string | null;
+  base_url: string;
+  context_length?: number | null;
+  discover_models: boolean;
+  has_api_key: boolean;
+  id: string;
+  is_current?: boolean;
+  model: string;
+  models: string[];
+  name: string;
+  source?: string;
+}
+
+export interface CustomEndpointsResponse {
+  current: { base_url: string; model: string; provider: string };
+  endpoints: CustomEndpoint[];
+  id?: string;
+  ok?: boolean;
+}
+
+export interface CustomEndpointUpdate {
+  api_key?: string;
+  base_url: string;
+  context_length?: number;
+  discover_models?: boolean;
+  id?: string;
+  make_default?: boolean;
+  model: string;
+  models?: string[];
+  name: string;
+}
+
+export interface CustomEndpointValidationResponse {
+  message: string;
+  models: string[];
+  ok: boolean;
+  reachable: boolean;
+}
 export type {
   AgentPluginScanFinding,
   AgentPluginUpdateResponse,
