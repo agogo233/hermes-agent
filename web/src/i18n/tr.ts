@@ -1,4 +1,5 @@
 import type { Translations } from "./types";
+import { en } from "./en";
 
 export const tr: Translations = {
   common: {
@@ -226,6 +227,8 @@ export const tr: Translations = {
     noModelsData: "Bu dönem için model kullanım verisi yok",
     startSession: "Burada model verilerini görmek için bir oturum başlatın",
   },
+
+  customEndpoints: en.customEndpoints,
 
   logs: {
     title: "Günlükler",

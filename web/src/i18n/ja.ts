@@ -1,4 +1,5 @@
 import type { Translations } from "./types";
+import { en } from "./en";
 
 export const ja: Translations = {
   common: {
@@ -226,6 +227,8 @@ export const ja: Translations = {
     noModelsData: "この期間のモデル使用データはありません",
     startSession: "セッションを開始するとモデルデータがここに表示されます",
   },
+
+  customEndpoints: en.customEndpoints,
 
   logs: {
     title: "ログ",

@@ -1,4 +1,5 @@
 import type { Translations } from "./types";
+import { en } from "./en";
 
 export const af: Translations = {
   common: {
@@ -226,6 +227,8 @@ export const af: Translations = {
     noModelsData: "Geen modelgebruiksdata vir hierdie tydperk nie",
     startSession: "Begin 'n sessie om modeldata hier te sien",
   },
+
+  customEndpoints: en.customEndpoints,
 
   logs: {
     title: "Logs",

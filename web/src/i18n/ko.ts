@@ -1,4 +1,5 @@
 import type { Translations } from "./types";
+import { en } from "./en";
 
 export const ko: Translations = {
   common: {
@@ -226,6 +227,8 @@ export const ko: Translations = {
     noModelsData: "이 기간에 대한 모델 사용 데이터가 없습니다",
     startSession: "세션을 시작하면 여기에 모델 데이터가 표시됩니다",
   },
+
+  customEndpoints: en.customEndpoints,
 
   logs: {
     title: "로그",

@@ -1,4 +1,5 @@
 import type { Translations } from "./types";
+import { en } from "./en";
 
 export const zhHant: Translations = {
   common: {
@@ -226,6 +227,8 @@ export const zhHant: Translations = {
     noModelsData: "此時間範圍內無模型使用資料",
     startSession: "開始工作階段後將於此處顯示模型資料",
   },
+
+  customEndpoints: en.customEndpoints,
 
   logs: {
     title: "日誌",

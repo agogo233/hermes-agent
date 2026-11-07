@@ -1,4 +1,5 @@
 import type { Translations } from "./types";
+import { en } from "./en";
 
 export const uk: Translations = {
   common: {
@@ -226,6 +227,8 @@ export const uk: Translations = {
     noModelsData: "Немає даних про використання моделей за цей період",
     startSession: "Почніть сесію, щоб побачити дані моделей тут",
   },
+
+  customEndpoints: en.customEndpoints,
 
   logs: {
     title: "Журнали",

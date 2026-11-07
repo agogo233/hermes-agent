@@ -735,7 +735,7 @@ export const api = {
       body: JSON.stringify(body),
     }),
   testProvider: (body: { provider: string; base_url: string; api_key?: string; model?: string }) =>
-    fetchJSON<{ ok: boolean; reachable: boolean; message: string; models: string[] }>(
+    fetchJSON<{ ok: boolean; reachable: boolean; message: string; models: string[]; latency_ms?: number }>(
       "/api/providers/validate",
       {
         method: "POST",

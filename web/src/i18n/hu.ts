@@ -1,4 +1,5 @@
 import type { Translations } from "./types";
+import { en } from "./en";
 
 export const hu: Translations = {
   common: {
@@ -226,6 +227,8 @@ export const hu: Translations = {
     noModelsData: "Nincs modellhasználati adat erre az időszakra",
     startSession: "Indítson munkamenetet a modelladatok megtekintéséhez",
   },
+
+  customEndpoints: en.customEndpoints,
 
   logs: {
     title: "Naplók",

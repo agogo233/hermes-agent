@@ -1,4 +1,5 @@
 import type { Translations } from "./types";
+import { en } from "./en";
 
 export const ga: Translations = {
   common: {
@@ -226,6 +227,8 @@ export const ga: Translations = {
     noModelsData: "Gan sonraí úsáide samhla don tréimhse seo",
     startSession: "Tosaigh seisiún chun sonraí samhla a fheiceáil anseo",
   },
+
+  customEndpoints: en.customEndpoints,
 
   logs: {
     title: "Logaí",
