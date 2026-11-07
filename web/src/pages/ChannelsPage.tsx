@@ -36,6 +36,7 @@ import type {
 import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { AllowlistInput } from "@/components/AllowlistInput";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { QrOnboardingPanel } from "@/components/QrOnboardingPanel";
 import { usePageHeader } from "@/contexts/usePageHeader";
 import { cn, themedBody } from "@/lib/utils";
 import { errorMessage } from "@/lib/api-error";
@@ -709,6 +710,31 @@ export default function ChannelsPage() {
                     platform={platform}
                     setRestartNeeded={setRestartNeeded}
                     showToast={showToast}
+                  />
+                )}
+                {platform.id === "weixin" && !viaRelay && (
+                  <QrOnboardingPanel
+                    applyPlatform="weixin"
+                    onChanged={load}
+                    onRestartNeeded={() => setRestartNeeded(true)}
+                    setRestartNeeded={setRestartNeeded}
+                    showToast={showToast}
+                    hasSavedConfig={Boolean(platform.weixin_setup)}
+                    configuredValue={platform.weixin_setup?.dm_policy}
+                    homeChannelSet={Boolean(platform.home_channel)}
+                  />
+                )}
+                {platform.id === "qqbot" && !viaRelay && (
+                  <QrOnboardingPanel
+                    applyPlatform="qqbot"
+                    onChanged={load}
+                    onRestartNeeded={() => setRestartNeeded(true)}
+                    setRestartNeeded={setRestartNeeded}
+                    showToast={showToast}
+                    hasSavedConfig={Boolean(platform.qqbot_setup)}
+                    configuredValue={platform.qqbot_setup?.dm_policy}
+                    groupConfiguredValue={platform.qqbot_setup?.group_policy ?? ""}
+                    homeChannelSet={Boolean(platform.home_channel)}
                   />
                 )}
               </CardContent>

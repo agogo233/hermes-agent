@@ -33,6 +33,7 @@ from hermes_cli.web_server_gateway import _restart_gateway_after
 from hermes_cli.web_whatsapp_session import _backup_whatsapp_session
 from hermes_cli.web_server_messaging import (
     _TelegramOnboardingPairing, _WhatsAppOnboardingSession, _messaging_platform_catalog, _telegram_onboarding_error_message, _telegram_onboarding_lock, _telegram_onboarding_pairings, _whatsapp_onboarding_payload, _whatsapp_onboarding_sessions,
+    _QqbotOnboardingSession, _WeixinOnboardingSession, _qqbot_onboarding_lock, _qqbot_onboarding_payload, _qqbot_onboarding_sessions, _start_qqbot_onboarding_thread, _start_weixin_onboarding_thread, _supersede_qqbot_onboarding_sessions, _supersede_weixin_onboarding_sessions, _weixin_onboarding_lock, _weixin_onboarding_payload, _weixin_onboarding_sessions, _QQBOT_DM_POLICY_CHOICES, _QQBOT_GROUP_POLICY_CHOICES, _DM_POLICY_CHOICES, _QQBOT_ONBOARDING_TTL_SECONDS, _WEIXIN_ONBOARDING_TTL_SECONDS, _prune_qqbot_onboarding_sessions, _prune_weixin_onboarding_sessions,
 )
 from hermes_cli.web_routers._common import (
     REDACTED_CREDENTIAL_WRITE_DETAIL, http_failure, is_redacted_credential_preview,
@@ -41,6 +42,7 @@ from hermes_cli.web_routers._common import (
 from hermes_cli.web_models import (
     MessagingPlatformUpdate, TelegramOnboardingApply, TelegramOnboardingStart,
     WhatsAppOnboardingApply, WhatsAppOnboardingStart,
+    WeixinOnboardingApply, QqbotOnboardingApply,
 )
 
 _log = logging.getLogger("hermes_cli.web_server")
@@ -220,6 +222,26 @@ def _relay_disabled_platform_ids(scoped: bool) -> frozenset[str]:
         return frozenset()
 
 
+def _raw_config_platform_extra(platform_id: str) -> dict[str, Any]:
+    """``platforms.<id>.extra`` as written in config.yaml (pre env-override).
+
+    The gateway's env bridge (gateway/config_env.py) overwrites matching extra
+    keys when the env var is set, so the effective value is ``env or this``.
+    """
+    try:
+        cfg = load_config()
+        platforms = cfg.get("platforms")
+        if not isinstance(platforms, dict):
+            return {}
+        plat_cfg = platforms.get(platform_id)
+        if not isinstance(plat_cfg, dict):
+            return {}
+        extra = plat_cfg.get("extra")
+        return extra if isinstance(extra, dict) else {}
+    except Exception:  # health: allow BLE001 -- advisory read; unreadable config yields empty
+        return {}
+
+
 def _messaging_platform_payload(
     entry: dict[str, Any], env_on_disk: dict[str, str], runtime: dict | None,
     scoped: bool = False, profile_home: Optional[Path] = None, source_keys: Collection[str] = (),
@@ -311,6 +333,34 @@ def _messaging_platform_payload(
             "mode": whatsapp_mode if whatsapp_mode in {"bot", "self-chat"} else "",
             "allowed_users_set": bool(env_value("WHATSAPP_ALLOWED_USERS").strip()),
             "home_channel_set": bool(home_channel),
+        }
+    if platform_id == "weixin":
+        # Effective values follow the gateway's env bridge precedence: env over
+        # config.yaml extra. dm_policy has an env of its own (WEIXIN_DM_POLICY).
+        dm_policy = env_value("WEIXIN_DM_POLICY").strip().lower()
+        if not dm_policy:
+            dm_policy = str(
+                _raw_config_platform_extra(platform_id).get("dm_policy") or "pairing"
+            ).strip().lower()
+        payload["weixin_setup"] = {
+            "dm_policy": dm_policy if dm_policy in _DM_POLICY_CHOICES else "pairing",
+            "allowed_users_set": bool(env_value("WEIXIN_ALLOWED_USERS").strip()),
+        }
+    if platform_id == "qqbot":
+        # Effective values follow the gateway's env bridge precedence: env over
+        # config.yaml extra. dm_policy has no env of its own — QQ_ALLOW_ALL_USERS
+        # is the gateway-layer allow-all opt-in, QQ_ALLOWED_USERS the allowlist.
+        dm_policy = "pairing"
+        if env_value("QQ_ALLOWED_USERS").strip():
+            dm_policy = "allowlist"
+        if env_value("QQ_ALLOW_ALL_USERS").strip().lower() in ("true", "1", "yes"):
+            dm_policy = "open"
+        group_policy = env_value("QQ_GROUP_POLICY").strip().lower() \
+            or str(_raw_config_platform_extra(platform_id).get("group_policy") or "").strip().lower()
+        payload["qqbot_setup"] = {
+            "dm_policy": dm_policy,
+            "group_policy": group_policy if group_policy in _QQBOT_GROUP_POLICY_CHOICES else "",
+            "group_allowed_users_set": bool(env_value("QQ_GROUP_ALLOWED_USERS").strip()),
         }
     return payload
 
@@ -969,6 +1019,276 @@ async def apply_telegram_onboarding(pairing_id: str, body: TelegramOnboardingApp
 async def cancel_telegram_onboarding(pairing_id: str):
     with _telegram_onboarding_lock:
         _telegram_onboarding_pairings.pop(pairing_id, None)
+    return {"ok": True}
+
+
+# ── Weixin QR onboarding ──────────────────────────────────────────
+
+
+def _utc_iso_from_ts(ts: float) -> str:
+    return datetime.fromtimestamp(ts, UTC).isoformat().replace("+00:00", "Z")
+
+
+@router.post("/api/messaging/weixin/onboarding/start")
+async def start_weixin_onboarding(profile: Optional[str] = None):
+    from plugins.platforms.weixin.adapter import check_weixin_requirements
+
+    if not check_weixin_requirements():
+        raise HTTPException(
+            status_code=409,
+            detail="Weixin dependencies are missing. Install aiohttp and cryptography, then retry.",
+        )
+    effective_profile = profile or ""
+    with _config_profile_scope(effective_profile):
+        from hermes_constants import get_hermes_home
+        hermes_home = get_hermes_home()
+        expires_at_ts = time.time() + _WEIXIN_ONBOARDING_TTL_SECONDS
+        expires_at = _utc_iso_from_ts(expires_at_ts)
+
+    pairing_id = secrets.token_urlsafe(16)
+    record = _WeixinOnboardingSession(
+        pairing_id=pairing_id,
+        expires_at=expires_at,
+        expires_at_ts=expires_at_ts,
+        profile=effective_profile or None,
+        _hermes_home=hermes_home,
+        cancel_event=threading.Event(),
+    )
+
+    with _weixin_onboarding_lock:
+        _prune_weixin_onboarding_sessions()
+        _supersede_weixin_onboarding_sessions(effective_profile)
+        _weixin_onboarding_sessions[pairing_id] = record
+
+    _start_weixin_onboarding_thread(record, hermes_home)
+    return _weixin_onboarding_payload(pairing_id, record)
+
+
+@router.get("/api/messaging/weixin/onboarding/{pairing_id}")
+async def get_weixin_onboarding_status(pairing_id: str):
+    with _weixin_onboarding_lock:
+        _prune_weixin_onboarding_sessions()
+        record = _weixin_onboarding_sessions.get(pairing_id)
+        if not record:
+            raise HTTPException(
+                status_code=404,
+                detail="Weixin setup session was not found. Start a new setup.",
+            )
+        if record.status == "expired":
+            raise HTTPException(status_code=410, detail=record.error or "Weixin setup expired.")
+        return _weixin_onboarding_payload(pairing_id, record)
+
+
+@router.post("/api/messaging/weixin/onboarding/{pairing_id}/apply")
+async def apply_weixin_onboarding(
+    pairing_id: str, body: WeixinOnboardingApply, profile: Optional[str] = None
+):
+    with _weixin_onboarding_lock:
+        _prune_weixin_onboarding_sessions()
+        record = _weixin_onboarding_sessions.get(pairing_id)
+        if not record:
+            raise HTTPException(
+                status_code=404,
+                detail="Weixin setup session was not found. Start a new setup.",
+            )
+        if record.status != "connected":
+            raise HTTPException(status_code=409, detail="Weixin setup is not connected yet.")
+        dm_policy = str(body.dm_policy or "pairing").strip().lower()
+        if dm_policy not in _DM_POLICY_CHOICES:
+            raise HTTPException(
+                status_code=400,
+                detail="dm_policy must be one of: pairing, open, allowlist, disabled.",
+            )
+        allowed_users = str(body.allowed_users or "").replace(" ", "")
+        effective_profile = body.profile or profile or record.profile or ""
+        token = record._token
+
+    try:
+        with _config_profile_scope(effective_profile):
+            save_env_value("WEIXIN_ACCOUNT_ID", record.account_id or "")
+            save_env_value("WEIXIN_TOKEN", token)
+            save_env_value(
+                "WEIXIN_CDN_BASE_URL",
+                get_env_value("WEIXIN_CDN_BASE_URL")
+                or "https://novac2c.cdn.weixin.qq.com/c2c",
+            )
+            if record.base_url:
+                save_env_value("WEIXIN_BASE_URL", record.base_url)
+            save_env_value("WEIXIN_DM_POLICY", dm_policy)
+            save_env_value("WEIXIN_ALLOW_ALL_USERS", "true" if dm_policy == "open" else "false")
+            if allowed_users:
+                save_env_value("WEIXIN_ALLOWED_USERS", allowed_users)
+            if body.home_channel is None:
+                pass  # leaving any persisted home channel untouched
+            elif body.home_channel and record.user_id:
+                save_env_value("WEIXIN_HOME_CHANNEL", record.user_id)
+            _write_platform_enabled("weixin", True)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        _log.exception("Weixin onboarding apply failed")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save Weixin setup.",
+        ) from exc
+
+    with _weixin_onboarding_lock:
+        _weixin_onboarding_sessions.pop(pairing_id, None)
+
+    restart_result = _restart_gateway_after(
+        effective_profile, what="Weixin onboarding", label="Weixin onboarding"
+    )
+    return {
+        "ok": True,
+        "platform": "weixin",
+        "needs_restart": not restart_result["restart_started"],
+        **restart_result,
+    }
+
+
+@router.delete("/api/messaging/weixin/onboarding/{pairing_id}")
+async def cancel_weixin_onboarding(pairing_id: str):
+    with _weixin_onboarding_lock:
+        record = _weixin_onboarding_sessions.pop(pairing_id, None)
+    if record:
+        record.status = "cancelled"
+        if record.cancel_event:
+            record.cancel_event.set()
+    return {"ok": True}
+
+
+# ── QQBot QR onboarding ───────────────────────────────────────────
+
+
+@router.post("/api/messaging/qqbot/onboarding/start")
+async def start_qqbot_onboarding(profile: Optional[str] = None):
+    effective_profile = profile or ""
+    with _config_profile_scope(effective_profile):
+        expires_at_ts = time.time() + _QQBOT_ONBOARDING_TTL_SECONDS
+        expires_at = _utc_iso_from_ts(expires_at_ts)
+
+    pairing_id = secrets.token_urlsafe(16)
+    record = _QqbotOnboardingSession(
+        pairing_id=pairing_id,
+        expires_at=expires_at,
+        expires_at_ts=expires_at_ts,
+        profile=effective_profile or None,
+        cancel_event=threading.Event(),
+    )
+
+    with _qqbot_onboarding_lock:
+        _prune_qqbot_onboarding_sessions()
+        _supersede_qqbot_onboarding_sessions(effective_profile)
+        _qqbot_onboarding_sessions[pairing_id] = record
+
+    _start_qqbot_onboarding_thread(record)
+    return _qqbot_onboarding_payload(pairing_id, record)
+
+
+@router.get("/api/messaging/qqbot/onboarding/{pairing_id}")
+async def get_qqbot_onboarding_status(pairing_id: str):
+    with _qqbot_onboarding_lock:
+        _prune_qqbot_onboarding_sessions()
+        record = _qqbot_onboarding_sessions.get(pairing_id)
+        if not record:
+            raise HTTPException(
+                status_code=404,
+                detail="QQBot setup session was not found. Start a new setup.",
+            )
+        if record.status == "expired":
+            raise HTTPException(status_code=410, detail=record.error or "QQBot setup expired.")
+        return _qqbot_onboarding_payload(pairing_id, record)
+
+
+@router.post("/api/messaging/qqbot/onboarding/{pairing_id}/apply")
+async def apply_qqbot_onboarding(
+    pairing_id: str, body: QqbotOnboardingApply, profile: Optional[str] = None
+):
+    with _qqbot_onboarding_lock:
+        _prune_qqbot_onboarding_sessions()
+        record = _qqbot_onboarding_sessions.get(pairing_id)
+        if not record:
+            raise HTTPException(
+                status_code=404,
+                detail="QQBot setup session was not found. Start a new setup.",
+            )
+        if record.status != "connected":
+            raise HTTPException(status_code=409, detail="QQBot setup is not connected yet.")
+        dm_policy = str(body.dm_policy or "pairing").strip().lower()
+        if dm_policy not in _QQBOT_DM_POLICY_CHOICES:
+            raise HTTPException(
+                status_code=400,
+                detail="dm_policy must be one of: pairing, open, allowlist.",
+            )
+        group_policy = None
+        if body.group_policy is not None:
+            group_policy = str(body.group_policy).strip().lower()
+            if group_policy not in _QQBOT_GROUP_POLICY_CHOICES:
+                raise HTTPException(
+                    status_code=400,
+                    detail="group_policy must be one of: open, allowlist, disabled.",
+                )
+        allowed_users = str(body.allowed_users or "").replace(" ", "")
+        group_allowed_users = str(body.group_allowed_users or "").replace(" ", "")
+        effective_profile = body.profile or profile or record.profile or ""
+        client_secret = record._client_secret
+
+    try:
+        with _config_profile_scope(effective_profile):
+            save_env_value("QQ_APP_ID", record.account_id or "")
+            save_env_value("QQ_CLIENT_SECRET", client_secret)
+            save_env_value("QQ_ALLOW_ALL_USERS", "true" if dm_policy == "open" else "false")
+            if allowed_users:
+                save_env_value("QQ_ALLOWED_USERS", allowed_users)
+            # ``None`` = don't touch persisted group settings (mirrors home_channel).
+            # "open" deliberately does NOT set QQ_ALLOW_ALL_USERS: at the gateway authz
+            # layer group senders still need user-level authorization (pairing /
+            # allowlist / allow-all), and silently flipping the DM allow-all would
+            # open direct messages as a side effect.
+            if group_policy is not None:
+                save_env_value("QQ_GROUP_POLICY", group_policy)
+                if group_policy == "allowlist" and group_allowed_users:
+                    save_env_value("QQ_GROUP_ALLOWED_USERS", group_allowed_users)
+            if body.home_channel is None:
+                pass  # leaving any persisted home channel untouched
+            elif body.home_channel and record.user_id:
+                save_env_value("QQBOT_HOME_CHANNEL", record.user_id)
+            _write_platform_enabled("qqbot", True)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        _log.exception("QQBot onboarding apply failed")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save QQBot setup.",
+        ) from exc
+
+    with _qqbot_onboarding_lock:
+        _qqbot_onboarding_sessions.pop(pairing_id, None)
+
+    restart_result = _restart_gateway_after(
+        effective_profile, what="QQBot onboarding", label="QQBot onboarding"
+    )
+    return {
+        "ok": True,
+        "platform": "qqbot",
+        "needs_restart": not restart_result["restart_started"],
+        **restart_result,
+    }
+
+
+@router.delete("/api/messaging/qqbot/onboarding/{pairing_id}")
+async def cancel_qqbot_onboarding(pairing_id: str):
+    with _qqbot_onboarding_lock:
+        record = _qqbot_onboarding_sessions.pop(pairing_id, None)
+    if record:
+        record.status = "cancelled"
+        if record.cancel_event:
+            record.cancel_event.set()
     return {"ok": True}
 
 

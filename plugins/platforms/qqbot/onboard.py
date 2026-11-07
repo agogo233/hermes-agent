@@ -7,7 +7,7 @@ from pm import install_hint
 import logging
 import time
 from enum import IntEnum
-from typing import Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 from urllib.parse import quote
 
 from .constants import (
@@ -82,9 +82,22 @@ def build_connect_url(task_id: str) -> str:
 _MAX_REFRESHES = 3
 
 
-def qr_register(timeout_seconds: int = 600) -> Optional[dict]:
-    """Run the QR registration flow; returns ``{"app_id", "client_secret", "user_openid"}``
-    or None on failure / expiry / cancellation. Unexpected errors propagate."""
+def qr_register_stream(
+    *,
+    on_qr: Optional[Callable[[str], None]] = None,
+    on_expired: Optional[Callable[[int, int], None]] = None,
+    on_complete: Optional[Callable[[str, str], None]] = None,
+    cancel_event: Optional[Any] = None,
+    timeout_seconds: int = 600,
+) -> Optional[dict]:
+    """Run the QR registration flow with streaming callbacks for non-terminal consumers.
+
+    Callbacks (all optional): ``on_qr(url)`` when a fresh QR URL is ready (initial + each
+    refresh), ``on_expired(refresh_count, max_refreshes)`` when a QR expires before the cap,
+    ``on_complete(app_id, user_openid)`` on success. ``cancel_event`` (``threading.Event``)
+    aborts the poll loop. Returns ``{"app_id", "client_secret", "user_openid"}`` or None on
+    failure / expiry / cancellation. Unexpected errors propagate.
+    """
     deadline = time.monotonic() + timeout_seconds
     for refresh_count in range(_MAX_REFRESHES + 1):
         try:
@@ -93,6 +106,40 @@ def qr_register(timeout_seconds: int = 600) -> Optional[dict]:
             logger.warning("[QQBot onboard] Failed to create bind task: %s", exc)
             return None
         url = build_connect_url(task_id)
+        if on_qr:
+            on_qr(url)
+        while time.monotonic() < deadline:
+            if cancel_event is not None and cancel_event.is_set():
+                return None
+            try:
+                status, app_id, encrypted_secret, user_openid = _poll_bind_result(task_id)
+            except Exception:
+                time.sleep(ONBOARD_POLL_INTERVAL)
+                continue
+            if status == BindStatus.COMPLETED:
+                client_secret = decrypt_secret(encrypted_secret, aes_key)
+                if on_complete:
+                    on_complete(app_id, user_openid)
+                return {"app_id": app_id, "client_secret": client_secret, "user_openid": user_openid}
+            if status == BindStatus.EXPIRED:
+                if refresh_count >= _MAX_REFRESHES:
+                    logger.warning("[QQBot onboard] QR code expired %d times — giving up", _MAX_REFRESHES)
+                    return None
+                if on_expired:
+                    on_expired(refresh_count + 1, _MAX_REFRESHES)
+                break  # next for-loop iteration creates a new task
+            time.sleep(ONBOARD_POLL_INTERVAL)
+        else:
+            logger.warning("[QQBot onboard] Poll timed out after %ds", timeout_seconds)
+            return None
+    return None
+
+
+def qr_register(timeout_seconds: int = 600) -> Optional[dict]:
+    """Run the QR registration flow; returns ``{"app_id", "client_secret", "user_openid"}``
+    or None on failure / expiry / cancellation. Unexpected errors propagate."""
+
+    def _on_qr(url: str) -> None:
         print()
         if _render_qr(url):
             print(f"  Scan the QR code above, or open this URL directly:\n  {url}")
@@ -101,27 +148,17 @@ def qr_register(timeout_seconds: int = 600) -> Optional[dict]:
             print("  For a scannable QR code, run: "
                   f"{install_hint('messaging')}")
         print()
-        while time.monotonic() < deadline:
-            try:
-                status, app_id, encrypted_secret, user_openid = _poll_bind_result(task_id)
-            except Exception:
-                time.sleep(ONBOARD_POLL_INTERVAL)
-                continue
-            if status == BindStatus.COMPLETED:
-                client_secret = decrypt_secret(encrypted_secret, aes_key)
-                print()
-                print(f"  QR scan complete! (App ID: {app_id})")
-                if user_openid:
-                    print(f"  Scanner's OpenID: {user_openid}")
-                return {"app_id": app_id, "client_secret": client_secret, "user_openid": user_openid}
-            if status == BindStatus.EXPIRED:
-                if refresh_count >= _MAX_REFRESHES:
-                    logger.warning("[QQBot onboard] QR code expired %d times — giving up", _MAX_REFRESHES)
-                    return None
-                print(f"\n  QR code expired, refreshing... ({refresh_count + 1}/{_MAX_REFRESHES})")
-                break  # next for-loop iteration creates a new task
-            time.sleep(ONBOARD_POLL_INTERVAL)
-        else:
-            logger.warning("[QQBot onboard] Poll timed out after %ds", timeout_seconds)
-            return None
-    return None
+
+    def _on_expired(refresh_count: int, max_refreshes: int) -> None:
+        print(f"\n  QR code expired, refreshing... ({refresh_count}/{max_refreshes})")
+
+    def _on_complete(app_id: str, user_openid: str) -> None:
+        print()
+        print(f"  QR scan complete! (App ID: {app_id})")
+        if user_openid:
+            print(f"  Scanner's OpenID: {user_openid}")
+
+    return qr_register_stream(
+        on_qr=_on_qr, on_expired=_on_expired, on_complete=_on_complete,
+        timeout_seconds=timeout_seconds,
+    )

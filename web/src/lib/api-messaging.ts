@@ -45,6 +45,15 @@ export interface MessagingPlatform {
     allowed_users_set?: boolean;
     home_channel_set?: boolean;
   } | null;
+  weixin_setup?: {
+    dm_policy?: string;
+    allowed_users_set?: boolean;
+  } | null;
+  qqbot_setup?: {
+    dm_policy?: string;
+    group_policy?: string;
+    group_allowed_users_set?: boolean;
+  } | null;
   env_vars: MessagingPlatformEnvVar[];
 }
 

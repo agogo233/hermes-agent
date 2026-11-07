@@ -138,6 +138,8 @@ const PROFILE_SCOPED_PREFIXES = [
   "/api/messaging/platforms",
   "/api/messaging/telegram/onboarding",
   "/api/messaging/whatsapp/onboarding",
+  "/api/messaging/weixin/onboarding",
+  "/api/messaging/qqbot/onboarding",
   // OAuth/account state is profile-owned too: status, login sessions, polling,
   // cancellation, and disconnect must all follow the selected management
   // profile rather than silently targeting the dashboard process's profile.
@@ -1117,6 +1119,63 @@ export const api = {
   cancelWhatsAppOnboarding: (pairingId: string) =>
     fetchJSON<{ ok: boolean }>(
       `/api/messaging/whatsapp/onboarding/${encodeURIComponent(pairingId)}`,
+      { method: "DELETE" },
+    ),
+  startWeixinOnboarding: () =>
+    fetchJSON<WeixinOnboardingStartResponse>("/api/messaging/weixin/onboarding/start", {
+      method: "POST",
+    }),
+  getWeixinOnboardingStatus: (pairingId: string) =>
+    fetchJSON<WeixinOnboardingStatusResponse>(
+      `/api/messaging/weixin/onboarding/${encodeURIComponent(pairingId)}`,
+    ),
+  applyWeixinOnboarding: (
+    pairingId: string,
+    body: { dm_policy?: string; allowed_users?: string; home_channel?: boolean; profile?: string },
+  ) =>
+    fetchJSON<WeixinOnboardingApplyResponse>(
+      `/api/messaging/weixin/onboarding/${encodeURIComponent(pairingId)}/apply`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    ),
+  cancelWeixinOnboarding: (pairingId: string) =>
+    fetchJSON<{ ok: boolean }>(
+      `/api/messaging/weixin/onboarding/${encodeURIComponent(pairingId)}`,
+      { method: "DELETE" },
+    ),
+  startQqbotOnboarding: () =>
+    fetchJSON<QqbotOnboardingStartResponse>("/api/messaging/qqbot/onboarding/start", {
+      method: "POST",
+    }),
+  getQqbotOnboardingStatus: (pairingId: string) =>
+    fetchJSON<QqbotOnboardingStatusResponse>(
+      `/api/messaging/qqbot/onboarding/${encodeURIComponent(pairingId)}`,
+    ),
+  applyQqbotOnboarding: (
+    pairingId: string,
+    body: {
+      dm_policy?: string;
+      allowed_users?: string;
+      group_policy?: string;
+      group_allowed_users?: string;
+      home_channel?: boolean;
+      profile?: string;
+    },
+  ) =>
+    fetchJSON<QqbotOnboardingApplyResponse>(
+      `/api/messaging/qqbot/onboarding/${encodeURIComponent(pairingId)}/apply`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    ),
+  cancelQqbotOnboarding: (pairingId: string) =>
+    fetchJSON<{ ok: boolean }>(
+      `/api/messaging/qqbot/onboarding/${encodeURIComponent(pairingId)}`,
       { method: "DELETE" },
     ),
 
@@ -2233,6 +2292,60 @@ export interface TelegramOnboardingApplyResponse {
   ok: boolean;
   platform: "telegram";
   bot_username?: string;
+  needs_restart: boolean;
+  restart_started?: boolean;
+  restart_action?: string;
+  restart_pid?: number | null;
+  restart_error?: string;
+}
+
+export interface WeixinOnboardingStartResponse {
+  pairing_id: string;
+  status:
+    | "waiting"
+    | "connected"
+    | "error"
+    | "expired"
+    | "cancelled";
+  qr_payload?: string | null;
+  expires_at: string;
+  account_id?: string | null;
+  user_id?: string | null;
+  error?: string | null;
+}
+
+export type WeixinOnboardingStatusResponse = WeixinOnboardingStartResponse;
+
+export interface WeixinOnboardingApplyResponse {
+  ok: boolean;
+  platform: "weixin";
+  needs_restart: boolean;
+  restart_started?: boolean;
+  restart_action?: string;
+  restart_pid?: number | null;
+  restart_error?: string;
+}
+
+export interface QqbotOnboardingStartResponse {
+  pairing_id: string;
+  status:
+    | "waiting"
+    | "connected"
+    | "error"
+    | "expired"
+    | "cancelled";
+  qr_payload?: string | null;
+  expires_at: string;
+  account_id?: string | null;
+  user_id?: string | null;
+  error?: string | null;
+}
+
+export type QqbotOnboardingStatusResponse = QqbotOnboardingStartResponse;
+
+export interface QqbotOnboardingApplyResponse {
+  ok: boolean;
+  platform: "qqbot";
   needs_restart: boolean;
   restart_started?: boolean;
   restart_action?: string;

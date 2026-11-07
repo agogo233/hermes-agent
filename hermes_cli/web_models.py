@@ -83,6 +83,30 @@ class WhatsAppOnboardingApply(BaseModel):
     allowed_users: Optional[str] = None
     profile: Optional[str] = None
 
+class WeixinOnboardingApply(BaseModel):
+    """Payload for POST /api/messaging/weixin/onboarding/{id}/apply."""
+    dm_policy: str = "pairing"
+    allowed_users: Optional[str] = ""
+    # ``None`` means "don't touch the persisted home channel"; only an explicit
+    # True/False writes (adopt) or clears (unset) the QR-paired home. A plain
+    # ``bool = False`` default would silently unset home for callers that omit
+    # the field entirely (legacy/other clients).
+    home_channel: Optional[bool] = None
+    profile: Optional[str] = None
+
+class QqbotOnboardingApply(BaseModel):
+    """Payload for POST /api/messaging/qqbot/onboarding/{id}/apply."""
+    dm_policy: str = "pairing"
+    allowed_users: Optional[str] = ""
+    # ``None`` means "don't touch the persisted group settings" (mirrors home_channel);
+    # an explicit value writes QQ_GROUP_POLICY (+ QQ_GROUP_ALLOWED_USERS when
+    # allowlist). Groups have no pairing flow — the adapter drops group messages
+    # under the default pairing policy, so the UI offers open/allowlist/disabled.
+    group_policy: Optional[str] = None
+    group_allowed_users: Optional[str] = ""
+    home_channel: Optional[bool] = None
+    profile: Optional[str] = None
+
 class AudioTranscriptionRequest(BaseModel):
     data_url: str
     mime_type: Optional[str] = None

@@ -579,9 +579,29 @@ def _save_sync_buf(hermes_home: str, account_id: str, sync_buf: str) -> None:
     atomic_json_write(_account_dir(hermes_home) / f"{account_id}.sync.json", {"get_updates_buf": sync_buf})
 
 
-async def _fetch_qr(session: aiohttp.ClientSession, bot_type: str) -> tuple[str, str]:
+async def fetch_bot_qrcode(session: aiohttp.ClientSession, *, bot_type: str = "3") -> tuple[str, str]:
+    """Fetch a fresh iLink bot QR code payload.
+
+    Returns ``(qrcode_value, qrcode_img_content)``. Raises RuntimeError on a
+    missing ``qrcode`` so callers can distinguish transport from logic failures.
+    """
     qr_resp = await _api_get(session, base_url=ILINK_BASE_URL, endpoint=f"{EP_GET_BOT_QR}?bot_type={bot_type}", timeout_ms=QR_TIMEOUT_MS)
-    return str(qr_resp.get("qrcode") or ""), str(qr_resp.get("qrcode_img_content") or "")
+    value = str(qr_resp.get("qrcode") or "")
+    url = str(qr_resp.get("qrcode_img_content") or "")
+    if not value:
+        raise RuntimeError("QR response missing qrcode")
+    return value, url
+
+
+async def poll_qr_status(
+    session: aiohttp.ClientSession, *, base_url: str, qrcode_value: str,
+) -> dict[str, Any]:
+    """Poll iLink for QR login status.
+
+    Returns the raw status dict (keys: ``status``, optionally ``redirect_host``,
+    ``ilink_bot_id``, ``bot_token``, etc.). Raises on HTTP or parse failure.
+    """
+    return await _api_get(session, base_url=base_url, endpoint=f"{EP_GET_QR_STATUS}?qrcode={qrcode_value}", timeout_ms=QR_TIMEOUT_MS)
 
 
 def _print_qr(qrcode_value: str, qrcode_url: str, *, report_render_error: bool) -> None:
@@ -604,12 +624,9 @@ async def qr_login(hermes_home: str, *, bot_type: str = "3", timeout_seconds: in
         raise RuntimeError("aiohttp is required for Weixin QR login")
     async with _new_session() as session:
         try:
-            qrcode_value, qrcode_url = await _fetch_qr(session, bot_type)
+            qrcode_value, qrcode_url = await fetch_bot_qrcode(session, bot_type=bot_type)
         except Exception as exc:
             logger.error("weixin: failed to fetch QR code: %s", exc)
-            return None
-        if not qrcode_value:
-            logger.error("weixin: QR response missing qrcode")
             return None
         print("\n请使用微信扫描以下二维码：")
         _print_qr(qrcode_value, qrcode_url, report_render_error=True)
@@ -617,7 +634,7 @@ async def qr_login(hermes_home: str, *, bot_type: str = "3", timeout_seconds: in
         current_base_url, refresh_count = ILINK_BASE_URL, 0
         while time.monotonic() < deadline:
             try:
-                status_resp = await _api_get(session, base_url=current_base_url, endpoint=f"{EP_GET_QR_STATUS}?qrcode={qrcode_value}", timeout_ms=QR_TIMEOUT_MS)
+                status_resp = await poll_qr_status(session, base_url=current_base_url, qrcode_value=qrcode_value)
             except Exception as exc:
                 if not isinstance(exc, asyncio.TimeoutError):
                     logger.warning("weixin: QR poll error: %s", exc)
@@ -637,7 +654,7 @@ async def qr_login(hermes_home: str, *, bot_type: str = "3", timeout_seconds: in
                     return None
                 print(f"\n二维码已过期，正在刷新... ({refresh_count}/3)")
                 try:
-                    qrcode_value, qrcode_url = await _fetch_qr(session, bot_type)
+                    qrcode_value, qrcode_url = await fetch_bot_qrcode(session, bot_type=bot_type)
                     _print_qr(qrcode_value, qrcode_url, report_render_error=False)
                 except Exception as exc:
                     logger.error("weixin: QR refresh failed: %s", exc)

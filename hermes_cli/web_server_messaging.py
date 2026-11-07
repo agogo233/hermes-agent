@@ -2,11 +2,14 @@
 and Telegram onboarding state.
 """
 
+import asyncio
 import logging
 import os
 import subprocess
 import threading
+import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from fastapi import HTTPException
 from pathlib import Path
 from typing import Any, Optional
@@ -300,3 +303,276 @@ def _telegram_onboarding_request_sync(
     if not isinstance(parsed, dict):
         raise HTTPException(status_code=502, detail=_TELEGRAM_INVALID)
     return parsed
+
+
+# ── Weixin QR onboarding state ─────────────────────────────────────
+
+_WEIXIN_ONBOARDING_TTL_SECONDS = 600
+_WEIXIN_ONBOARDING_TERMINAL_STATUSES = {"connected", "error", "expired", "cancelled"}
+
+_DM_POLICY_CHOICES = ("pairing", "open", "allowlist", "disabled")
+
+
+@dataclass
+class _WeixinOnboardingSession:
+    pairing_id: str
+    status: str = "waiting"
+    qr_payload: str | None = None
+    account_id: str | None = None
+    user_id: str | None = None
+    base_url: str | None = None
+    error: str | None = None
+    expires_at: str = ""
+    expires_at_ts: float = 0.0
+    profile: str | None = None
+    cancel_event: threading.Event | None = None
+    # We keep these only inside the loop; never exposed via GET payload.
+    _token: str = ""
+    _hermes_home: str = ""
+
+
+_weixin_onboarding_sessions: dict[str, _WeixinOnboardingSession] = {}
+_weixin_onboarding_lock = threading.RLock()
+
+
+def _prune_weixin_onboarding_sessions() -> None:
+    now = time.time()
+    remove_ids: list[str] = []
+    for pid, record in _weixin_onboarding_sessions.items():
+        if record.expires_at_ts <= now and record.status not in _WEIXIN_ONBOARDING_TERMINAL_STATUSES:
+            if record.cancel_event:
+                record.cancel_event.set()
+            record.status = "expired"
+            record.error = "Weixin QR setup expired. Start a new setup."
+        if record.status in _WEIXIN_ONBOARDING_TERMINAL_STATUSES and record.expires_at_ts + 300 <= now:
+            remove_ids.append(pid)
+    for pid in remove_ids:
+        _weixin_onboarding_sessions.pop(pid, None)
+
+
+def _supersede_weixin_onboarding_sessions(profile: str) -> None:
+    for record in _weixin_onboarding_sessions.values():
+        if record.profile == profile and record.status not in _WEIXIN_ONBOARDING_TERMINAL_STATUSES:
+            record.status = "cancelled"
+            record.error = "Superseded by a newer Weixin setup session."
+            if record.cancel_event:
+                record.cancel_event.set()
+
+
+def _weixin_onboarding_payload(pid: str, record: _WeixinOnboardingSession) -> dict[str, Any]:
+    return {
+        "pairing_id": pid,
+        "status": record.status,
+        "qr_payload": record.qr_payload,
+        "expires_at": record.expires_at,
+        "account_id": record.account_id,
+        "user_id": record.user_id,
+        "error": record.error,
+    }
+
+
+async def _weixin_onboarding_loop(
+    session: Any,
+    hermes_home: str,
+    record: _WeixinOnboardingSession,
+) -> None:
+    """Run the QR scan loop for a single weixin onboarding session."""
+    from plugins.platforms.weixin.adapter import (
+        ILINK_BASE_URL, fetch_bot_qrcode, poll_qr_status, save_weixin_account)
+
+    qrcode_value = ""
+    current_base_url = ILINK_BASE_URL
+    refresh_count = 0
+
+    async def _fetch_qr() -> None:
+        nonlocal qrcode_value
+        try:
+            qrcode_value, qrcode_url = await fetch_bot_qrcode(session)
+        except Exception as exc:
+            record.status = "error"
+            record.error = f"Failed to fetch QR code: {exc}"
+            return
+        record.qr_payload = qrcode_url or qrcode_value
+        record.status = "waiting"
+
+    await _fetch_qr()
+    if record.status == "error":
+        return
+
+    deadline = time.monotonic() + _WEIXIN_ONBOARDING_TTL_SECONDS
+    while time.monotonic() < deadline:
+        if record.cancel_event and record.cancel_event.is_set():
+            record.status = "cancelled"
+            return
+        try:
+            status_resp = await poll_qr_status(
+                session, base_url=current_base_url, qrcode_value=qrcode_value
+            )
+        except Exception:
+            await asyncio.sleep(1)
+            continue
+
+        status = str(status_resp.get("status") or "wait")
+        if status in ("wait", "scaned"):
+            await asyncio.sleep(1)
+            continue
+        if status == "scaned_but_redirect":
+            redirect_host = str(status_resp.get("redirect_host") or "")
+            if redirect_host:
+                current_base_url = f"https://{redirect_host}"
+            await asyncio.sleep(1)
+            continue
+        if status == "expired":
+            refresh_count += 1
+            if refresh_count > 3:
+                record.status = "expired"
+                record.error = "QR code expired too many times. Start a new setup."
+                return
+            await _fetch_qr()
+            if record.status == "error":
+                return
+            continue
+        if status == "confirmed":
+            account_id = str(status_resp.get("ilink_bot_id") or "")
+            token = str(status_resp.get("bot_token") or "")
+            base_url = str(status_resp.get("baseurl") or current_base_url)
+            user_id = str(status_resp.get("ilink_user_id") or "")
+            if not account_id or not token:
+                record.status = "error"
+                record.error = "Incomplete credential payload on confirm"
+                return
+            record.account_id = account_id
+            record.user_id = user_id
+            record.base_url = base_url
+            record._token = token
+            save_weixin_account(
+                hermes_home,
+                account_id=account_id,
+                token=token,
+                base_url=base_url,
+                user_id=user_id,
+            )
+            record.status = "connected"
+            return
+        await asyncio.sleep(1)
+
+    record.status = "expired"
+    record.error = "QR login timed out. Start a new setup."
+
+
+def _start_weixin_onboarding_thread(
+    record: _WeixinOnboardingSession, hermes_home: str
+) -> None:
+    """Spawn the async weixin QR loop in a daemon thread (context-bound)."""
+    from agent.memory_provider import spawn_context_thread
+    from plugins.platforms.weixin.adapter import _new_session
+
+    async def _run() -> None:
+        async with _new_session() as sess:
+            await _weixin_onboarding_loop(sess, hermes_home, record)
+
+    spawn_context_thread(
+        lambda: asyncio.run(_run()), name="weixin-onboarding", daemon=True
+    ).start()
+
+
+# ── QQBot QR onboarding state ──────────────────────────────────────
+
+_QQBOT_ONBOARDING_TTL_SECONDS = 600
+_QQBOT_ONBOARDING_TERMINAL_STATUSES = {"connected", "error", "expired", "cancelled"}
+_QQBOT_DM_POLICY_CHOICES = ("pairing", "open", "allowlist")
+_QQBOT_GROUP_POLICY_CHOICES = ("open", "allowlist", "disabled")
+
+
+@dataclass
+class _QqbotOnboardingSession:
+    pairing_id: str
+    status: str = "waiting"
+    qr_payload: str | None = None
+    account_id: str | None = None
+    user_id: str | None = None
+    error: str | None = None
+    expires_at: str = ""
+    expires_at_ts: float = 0.0
+    profile: str | None = None
+    cancel_event: threading.Event | None = None
+    _client_secret: str = ""
+
+
+_qqbot_onboarding_sessions: dict[str, _QqbotOnboardingSession] = {}
+_qqbot_onboarding_lock = threading.RLock()
+
+
+def _prune_qqbot_onboarding_sessions() -> None:
+    now = time.time()
+    remove_ids: list[str] = []
+    for pid, record in _qqbot_onboarding_sessions.items():
+        if record.expires_at_ts <= now and record.status not in _QQBOT_ONBOARDING_TERMINAL_STATUSES:
+            if record.cancel_event:
+                record.cancel_event.set()
+            record.status = "expired"
+            record.error = "QQBot QR setup expired. Start a new setup."
+        if record.status in _QQBOT_ONBOARDING_TERMINAL_STATUSES and record.expires_at_ts + 300 <= now:
+            remove_ids.append(pid)
+    for pid in remove_ids:
+        _qqbot_onboarding_sessions.pop(pid, None)
+
+
+def _supersede_qqbot_onboarding_sessions(profile: str) -> None:
+    for record in _qqbot_onboarding_sessions.values():
+        if record.profile == profile and record.status not in _QQBOT_ONBOARDING_TERMINAL_STATUSES:
+            record.status = "cancelled"
+            record.error = "Superseded by a newer QQBot setup session."
+            if record.cancel_event:
+                record.cancel_event.set()
+
+
+def _qqbot_onboarding_payload(pid: str, record: _QqbotOnboardingSession) -> dict[str, Any]:
+    return {
+        "pairing_id": pid,
+        "status": record.status,
+        "qr_payload": record.qr_payload,
+        "expires_at": record.expires_at,
+        "account_id": record.account_id,
+        "user_id": record.user_id,
+        "error": record.error,
+    }
+
+
+def _run_qqbot_onboarding(
+    record: _QqbotOnboardingSession,
+) -> None:
+    """Synchronous QR registration loop for QQBot, run in a daemon thread."""
+    from plugins.platforms.qqbot.onboard import qr_register_stream
+
+    def _on_qr(url: str) -> None:
+        record.qr_payload = url
+        record.status = "waiting"
+
+    def _on_complete(app_id: str, user_openid: str) -> None:
+        record.account_id = app_id
+        record.user_id = user_openid
+
+    result = qr_register_stream(
+        on_qr=_on_qr,
+        on_complete=_on_complete,
+        cancel_event=record.cancel_event,
+        timeout_seconds=_QQBOT_ONBOARDING_TTL_SECONDS,
+    )
+    if result:
+        record._client_secret = result.get("client_secret", "")
+        record.status = "connected"
+    elif record.cancel_event and record.cancel_event.is_set():
+        record.status = "cancelled"
+    else:
+        record.status = "expired"
+        record.error = "QR login timed out or expired. Start a new setup."
+
+
+def _start_qqbot_onboarding_thread(record: _QqbotOnboardingSession) -> None:
+    """Spawn the synchronous qqbot QR loop in a daemon thread (context-bound)."""
+    from agent.memory_provider import spawn_context_thread
+
+    spawn_context_thread(
+        _run_qqbot_onboarding, args=(record,), name="qqbot-onboarding", daemon=True
+    ).start()

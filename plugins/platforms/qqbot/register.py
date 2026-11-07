@@ -132,6 +132,13 @@ _PLATFORM_HINT = (
 )
 
 
+_GROUP_POLICY_CHOICES = ("open", "allowlist", "disabled")
+
+
+def _valid_group_policy(value: str) -> bool:
+    return str(value).strip().lower() in _GROUP_POLICY_CHOICES
+
+
 def register(ctx) -> None:
     from . import gateway_env  # env -> GatewayConfig bridge (gateway.config_env)
     ctx.register_platform(
@@ -153,6 +160,12 @@ def register(ctx) -> None:
         standalone_sender_fn=standalone_send,
         # QQ's dm/group policy is YAML-only (no env var); QQ_ALLOW_ALL_USERS is still the opt-in.
         platform_hint=_PLATFORM_HINT,
+        env_value_rules={
+            "QQ_GROUP_POLICY": (
+                _valid_group_policy,
+                "QQ group policy must be one of: open, allowlist, disabled.",
+            ),
+        },
         env_overrides=gateway_env.ENV_OVERRIDES,
         env_enable_credentials=gateway_env.ENV_ENABLE_CREDENTIALS, **gateway_env.AUTHZ,
     )
