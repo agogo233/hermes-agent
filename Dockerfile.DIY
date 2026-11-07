@@ -5,19 +5,20 @@
 #   uv_source    — 仅拷贝 uv/uvx 二进制
 #   node_source  — 构建期 node 26 + npm (替代已 EOL 的 Debian nodejs 20)；
 #                  运行期 node/npm 来自 PM store（见 builder 阶段），两者同版本
-#   gosu_source  — 仅拷贝 gosu 二进制
-#   builder      — npm install, playwright, web/ui-tui 构建, Python venv
+#   builder      — pnpm install, web/ui-tui 构建, Python venv
 #   runtime      — 仅运行时必要产物，无构建工具链
 #
 # 安全优化（相较于原版 Dockerfile）:
 #   1. python:3.14-slim (trixie) + 固定 sha256 digest
 #   2. uv:0.11.6-python3.13-trixie 固定 digest (仅拷贝二进制)
-#   3. gosu:1.19 (稳定版) + node:26-bookworm-slim 固定 digest
+#   3. node:26-bookworm-slim 固定 digest
 #   4. 多阶段构建：构建工具链（gcc/build-essential/Python dev headers）不进入最终镜像
-#   5. npm_config_install_links=false 以 RUN 前缀环境变量方式设置
-#   6. Playwright 浏览器安装到非卷挂载路径
+#   5. pnpm 经 PM store ensure（单一权威），frozen 安装锁定依赖
+#   6. 不打包浏览器（有意裁剪）：浏览器工具在容器内如实报不可用。
+#      省去 runtime 的 playwright install-deps 系统库（约 80~120MB）；
+#      Chromium 二进制本就被多阶段构建丢弃，裁剪只再省构建时间
 #   7. Python 依赖层缓存：pyproject.toml/uv.lock 先行 COPY，源码变更不触发重装
-#   8. runtime 补充 ffmpeg / openssh-client / docker-cli；node/npm 走 PM store
+#   8. runtime 补充 ffmpeg / openssh-client / docker-cli / tmux；node/npm 走 PM store
 #   9. 清理 __pycache__ / .pyc 缩减镜像体积
 #  10. 固定 SQLite 库替代 Debian 有 WAL-reset bug 的 libsqlite3.so.0 (同步上游 #70480)
 #  11. s6-overlay 改用 curl + --retry 下载 (替代 ADD，规避 CDN 抖动导致构建失败)
@@ -72,14 +73,12 @@ FROM ghcr.io/astral-sh/uv:0.11.6-python3.13-trixie@sha256:b3c543b6c4f23a5f2df228
 # 从上游 node:26 镜像拷贝 node + npm（Hermes 工具链全局固定 Node 26, #4977）。
 # 用 bookworm-slim（glibc 2.36）产物，可在 trixie（glibc 2.41）runtime 上运行。
 FROM node:26-bookworm-slim@sha256:9e6f9357d371591e32ab6f2d8a26d63bdd0d17c29eee3f4f3e7e454d9634bf73 AS node_source
-FROM tianon/gosu:1.19@sha256:4f3cac1d780201437137b3a693a0bf23f28ef1b5a11262880419fd90c91ef425 AS gosu_source
 
 # ===== 阶段 2: 构建 =====================================================
 FROM python:3.14-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343719cb97305b3d AS builder
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
 # PM 工具 store 落在镜像层而非 $HERMES_HOME 数据卷：node/npm 必须随镜像烘焙，
 # 否则容器重建后 store 消失，而 HERMES_DISABLE_LAZY_INSTALLS=1 又禁止 PM 补装。
 # 上游 Dockerfile:201 用同一变量达成同样目的。
@@ -105,15 +104,13 @@ RUN apt-get update && \
         ripgrep && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --chmod=0755 --from=gosu_source /gosu /usr/local/bin/
 COPY --chmod=0755 --from=uv_source /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
-# 构建期 node 26 + 内置 npm（npm/npx 以符号链接恢复，因为源镜像中它们是符号链接）。
-# 只服务本阶段的 npm install / playwright / 前端构建；运行期改用 PM store 里
-# 锁定同版本（26.x）的那份，见本阶段末尾与 runtime 的 symlink。
+# 构建期 node 26 + 内置 npm（npm 以符号链接恢复，因为源镜像中它是符号链接）。
+# npm 只服务本阶段的 photon 侧车 npm ci（前端安装/构建走 pnpm）；运行期改用
+# PM store 里锁定同版本（26.x）的那份，见本阶段末尾与 runtime 的 symlink。
 COPY --chmod=0755 --from=node_source /usr/local/bin/node /usr/local/bin/
 COPY --from=node_source /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
-RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
-    ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
 
 # 上游已切 pnpm（package.json 拒绝 npm install，root 只用 pnpm-lock.yaml）。
 # node-deps.mjs 需要 pnpm CLI 在 PATH；pnpm 12 是原生可执行，symlink 直指其二进制。
@@ -135,14 +132,8 @@ COPY apps/shared/ apps/shared/
 COPY scripts/build/node-deps.mjs scripts/build/pnpm-lock.mjs scripts/build/electron-runtime.mjs scripts/build/
 
 # node-deps.mjs 做 pnpm frozen lockfile 安装（同上游 Dockerfile），覆盖
-# web/ui-tui 两个 workspace。playwright 浏览器构建期安装到非卷挂载路径
-# （--only-shell），运行库依赖由 runtime 补齐。
-RUN node scripts/build/node-deps.mjs --source /opt/hermes --workspace ui-tui --workspace web && \
-    for i in 1 2 3; do \
-        npx playwright install --with-deps chromium --only-shell && break || \
-        { [ "$i" = 3 ] && exit 1; echo "playwright install failed (attempt $i); retrying in 10s"; sleep 10; }; \
-    done && \
-    npm cache clean --force
+# web/ui-tui 两个 workspace。
+RUN node scripts/build/node-deps.mjs --source /opt/hermes --workspace ui-tui --workspace web
 
 # --- Photon iMessage 侧车依赖烘焙（同步上游；镜像不可变，首连 lazy npm ci 会撞 EROFS）---
 COPY plugins/platforms/photon/sidecar/package.json \
@@ -171,7 +162,7 @@ COPY scripts/build/ scripts/build/
 RUN cd web && pnpm run build && cd ../ui-tui && pnpm run build
 
 # --- 源码 ---
-# node_modules/.venv/.playwright 存活靠 .dockerignore 排除 + COPY 目录合并不删除语义；
+# node_modules/.venv 存活靠 .dockerignore 排除 + COPY 目录合并不删除语义；
 # --link 使本层与父层解耦，--chmod 在拷贝时烙好最终权限，省掉遍历 ~30k 文件的
 # chmod -R 整层重写（上游 #49113）。
 # a+rX,go-w：hermes 只读+可执行，root 保留写 —— 与 stage2-hook "Immutable install
@@ -213,19 +204,18 @@ FROM python:3.14-slim@sha256:51dafde81dbdb6ebde285137a295cf18a47ca95234fe388a343
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
 ENV HERMES_WEB_DIST=/opt/hermes/hermes_cli/web_dist
 # 指向构建期烘焙的 TUI bundle，让 TUI 启动器走 prebuilt 快速路径（跳过 npm install）
 ENV HERMES_TUI_DIR=/opt/hermes/ui-tui
 ENV HERMES_HOME=/opt/data
 ENV HERMES_WRITE_SAFE_ROOT=/opt/data
+# 运行期密封：不按需安装任何新依赖（opt-in extra、插件依赖、uvx MCP 均不可用），
+# 需要新依赖时只能重建镜像 —— 有意换取可预测的只读运行时。
 ENV HERMES_DISABLE_LAZY_INSTALLS=1
 # 与 builder 同一 store 路径：node/npm 由 builder 装进 /opt/hermes/tools 并随
 # /opt/hermes 一起 COPY 过来。缺这行的话 store_root() 会回落到 $HERMES_HOME/tools
 # （/opt/data 数据卷），容器重建后 node 消失，pm.ensure() 随之抛 InstallError。
 ENV HERMES_RUNTIME_DIR=/opt/hermes/tools
-# 密封的 venv 不允许 lazy install 写回镜像层；重定向到持久数据卷
-ENV HERMES_LAZY_INSTALL_TARGET=/opt/data/lazy-packages
 # 构建 helper 用系统 Python；TUI gateway 子进程需要密封的 venv 运行时
 ENV HERMES_PYTHON=/opt/hermes/.venv/bin/python
 # Xfce/dbus/display 锁需要确定性的 per-UID 运行时目录；容器无 logind，
@@ -250,8 +240,9 @@ sys.exit('SQLite FTS5 trigram self-test failed') if db.execute(\"SELECT count(*)
 db.close()"
 
 # --- 运行时最小依赖 ---
-# iputils-ping：agent 终端 ping；libatomic1：node/chromium 部分场景依赖，
-# python:3.14-slim 默认不带。
+# iputils-ping：agent 终端 ping；libatomic1：node 部分场景依赖，
+# python:3.14-slim 默认不带。tmux：hermes-agent 技能的交互 PTY 配方
+# （tmux send-keys/capture-pane）需要它，运行期用户无法自行补装。
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
@@ -264,6 +255,7 @@ RUN apt-get update && \
         openssh-client \
         ripgrep \
         docker-cli \
+        tmux \
         xz-utils && \
     rm -rf /var/lib/apt/lists/*
 
@@ -314,14 +306,13 @@ RUN set -eu; \
 # 直接符号链接 /init 会把 tini 参数（如 -g）透传给 rc.init 导致启动循环（#66679）。
 COPY --chmod=0755 docker/tini-shim.sh /usr/bin/tini
 
-COPY --chmod=0755 --from=gosu_source /gosu /usr/local/bin/
 # 登录 shell 重读 /etc/profile 会重置 PATH；此脚本把上方 ENV PATH 的三个目录
 # 补回，使 `docker exec -it <c> bash -l` 等登录 shell 仍能找到 hermes/venv。
 COPY --chmod=0644 docker/profile-hermes-path.sh /etc/profile.d/hermes.sh
 # --link + --chmod 在拷贝时一次成型：避免 chmod -R/chown -R 把整棵 ~2-3GB 的树
-# （venv + node_modules + .playwright）重写进新层、使最终镜像近乎翻倍（#49113）。
+# （venv + node_modules）重写进新层、使最终镜像近乎翻倍（#49113）。
 # 烘焙树刻意保持 root-owned 且 hermes 不可写（stage2-hook "Immutable install tree"
-# 契约）；可变状态全在 $HERMES_HOME，lazy install 已重定向到 /opt/data/lazy-packages。
+# 契约）；可变状态全在 $HERMES_HOME，运行期按需安装已禁用（密封运行时）。
 COPY --link --chmod=a+rX,go-w --from=builder /opt/hermes /opt/hermes/
 
 # --- runtime 补齐 node/npm ---
@@ -339,14 +330,6 @@ for cmd in ("node", "npm", "npx"):
     link.symlink_to(find_node_executable(cmd))
 PY
 RUN node --version && npm --version
-
-# --- 补齐 Chromium 运行库 ---
-# builder 里的 `playwright install --with-deps` 把浏览器系统依赖装进了 builder 层；
-# 多阶段构建下这些 apt 包不会进入 runtime。此处用 playwright 自己维护的依赖清单
-# 重新安装，避免容器内 browser_navigate / 截图功能因缺 libnss3 等运行库而崩溃。
-RUN cd /opt/hermes && \
-    npx playwright install-deps chromium && \
-    rm -rf /var/lib/apt/lists/*
 
 # ---------- s6-overlay service wiring ----------
 COPY docker/s6-rc.d/ /etc/s6-overlay/s6-rc.d/
@@ -368,14 +351,11 @@ RUN mkdir -p /opt/hermes/bin && \
     chmod 0755 /opt/hermes /opt/hermes/bin/hermes && \
     printf 'docker\n' > /opt/hermes/.install_method
 
-# ---------- 烘焙构建期 git 修订 ----------
-# .dockerignore 排除 .git，容器内 git rev-parse 拿不到 SHA。经 HERMES_GIT_SHA
-# build-arg 写入 /opt/hermes/.hermes_build_sha，hermes_cli/build_info.py 优先读取
-# （hermes dump 与启动横幅可溯源）。arg 可选：本地构建不传则跳过，回退到 git 查询。
+# ---------- 构建 provenance ----------
+# .dockerignore 排除 .git，容器内 git rev-parse 拿不到 SHA；版本溯源由下方
+# install-stamp.json 承担（hermes_cli/version_info.py 读它）。CI 经 HERMES_GIT_SHA
+# build-arg 传入真实 SHA；本地构建不传则回退全零（version_info 视为 unknown）。
 ARG HERMES_GIT_SHA=
-RUN if [ -n "${HERMES_GIT_SHA}" ]; then \
-        printf '%s\n' "${HERMES_GIT_SHA}" > /opt/hermes/.hermes_build_sha; \
-    fi
 # ---------- PM 运行时 marker（供 pm.runtime._resident_runtime 定位驻留解释器）----------
 # distribution=docker 的 install-stamp 必须带 pmRuntime 绝对路径 + 该目录下
 # pm-runtime.json（python/sitePackages 相对键），否则 TUI 子进程 boot 时
