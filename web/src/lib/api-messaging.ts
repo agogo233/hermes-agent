@@ -32,6 +32,14 @@ export interface MessagingPlatform {
   error_message: string | null;
   updated_at: string | null;
   home_channel: { platform: string; chat_id: string; name: string; thread_id?: string } | null;
+  /**
+   * Where the effective home channel comes from: `"env"` (a `*_HOME_CHANNEL`
+   * .env var overrides config.yaml — the UI disables editing), `"config"`
+   * (config.yaml `platforms.<id>.home_channel`), or `null` (never set).
+   */
+  home_channel_source?: "env" | "config" | null;
+  /** The `*_HOME_CHANNEL` env var that would override this platform, if any. */
+  home_channel_env?: string | null;
   /** Multiplex secondary served on the default profile's shared listener: the vendor callback URL. */
   ingress_url?: string | null;
   /** Switched off by the GATEWAY_RELAY_URL relay-exclusive rule, not by the user (absent on older backends). */

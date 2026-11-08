@@ -58,10 +58,21 @@ class CustomEndpointUpdate(BaseModel):
     models: Optional[list[str]] = None
     model_details: Optional[list[CustomEndpointModelDetail]] = None
 
+class HomeChannelUpdate(BaseModel):
+    chat_id: str
+    name: Optional[str] = None
+    thread_id: Optional[str] = None
+
 class MessagingPlatformUpdate(BaseModel):
     enabled: Optional[bool] = None
     env: dict[str, str] = {}
     clear_env: list[str] = []
+    # Set a home channel for cron deliveries / notifications. ``clear_home_channel``
+    # wins when both are provided. A ``.env`` ``*_HOME_CHANNEL`` override takes
+    # precedence over this config.yaml write — the UI disables editing when that
+    # is the case (see ``home_channel_source`` on the read payload).
+    home_channel: Optional[HomeChannelUpdate] = None
+    clear_home_channel: bool = False
     # Explicit body profile beats the switcher's query param (same as other scoped writes).
     profile: Optional[str] = None
 

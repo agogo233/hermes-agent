@@ -177,6 +177,19 @@ export default function ChannelsPage() {
   }, []);
   const editModalRef = useModalBehavior({ open: editing !== null, onClose: closeEdit });
 
+  // Home channel draft state (the Configure modal's "Home channel" section).
+  // ``homeClearPending`` becomes true when the user clears the current home
+  // channel; typing a new chat ID cancels it.
+  const [draftHomeChatId, setDraftHomeChatId] = useState("");
+  const [draftHomeName, setDraftHomeName] = useState("");
+  const [draftHomeThread, setDraftHomeThread] = useState("");
+  const [homeClearPending, setHomeClearPending] = useState(false);
+
+  // When a `*_HOME_CHANNEL` env override exists, config.yaml edits would be
+  // silently ignored by the gateway — disable the home section and explain.
+  const homeChannelDisabled = editing?.home_channel_source === "env";
+  const homeChannelEnvName = editing?.home_channel_env ?? null;
+
   // Per-card busy + restart-needed tracking
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -207,6 +220,10 @@ export default function ChannelsPage() {
       initial[v.key] = v.is_list ? v.value || "" : "";
     });
     setDraftEnv(initial);
+    setDraftHomeChatId(platform.home_channel?.chat_id ?? "");
+    setDraftHomeName(platform.home_channel?.name ?? "");
+    setDraftHomeThread(platform.home_channel?.thread_id ?? "");
+    setHomeClearPending(false);
     setFieldErrors({});
     setEditing(platform);
   };
@@ -228,7 +245,22 @@ export default function ChannelsPage() {
         env[field.key] = v;
       }
     });
-    if (Object.keys(env).length === 0 && clearEnv.length === 0) {
+    // Home channel: explicit clear wins; otherwise a non-empty chat ID sets
+    // (or updates) it. When an env override owns the home channel the section
+    // is disabled — never send a home write that the gateway would ignore.
+    const homeAction =
+      !homeChannelDisabled && homeClearPending
+        ? { clear_home_channel: true as const }
+        : !homeChannelDisabled && draftHomeChatId.trim()
+          ? {
+              home_channel: {
+                chat_id: draftHomeChatId.trim(),
+                name: draftHomeName.trim() || undefined,
+                thread_id: draftHomeThread.trim() || undefined,
+              },
+            }
+          : null;
+    if (Object.keys(env).length === 0 && clearEnv.length === 0 && !homeAction) {
       showToast("Nothing to save — fill in at least one field.", "error");
       return;
     }
@@ -255,6 +287,7 @@ export default function ChannelsPage() {
         env,
         enabled: true,
         ...(clearEnv.length ? { clear_env: clearEnv } : {}),
+        ...(homeAction ?? {}),
       };
       const result = await api.updateMessagingPlatform(editing.id, body);
       showToast(
@@ -566,6 +599,91 @@ export default function ChannelsPage() {
                   )}
                 </div>
               ))}
+
+              <div className="grid gap-3 border-t border-border pt-4">
+                <div className="grid gap-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                      Home channel (cron delivery)
+                    </span>
+                    {editing?.home_channel && (
+                      <span className="truncate text-xs text-muted-foreground">
+                        {editing.home_channel.chat_id}
+                        {editing.home_channel.thread_id ? `#${editing.home_channel.thread_id}` : ""}
+                      </span>
+                    )}
+                  </div>
+                  {homeChannelDisabled && (
+                    <span className="text-xs text-warning">
+                      {`Set by ${homeChannelEnvName ?? "the environment"} in your .env — this overrides config.yaml. Edit it there or run /sethome in the target chat.`}
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    Default chat for cron deliveries and notifications. Set it here, or run /sethome in the target chat to capture its exact ID.
+                  </span>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor="field-home-chat-id">Chat ID</Label>
+                  <Input
+                    id="field-home-chat-id"
+                    value={draftHomeChatId}
+                    disabled={homeChannelDisabled}
+                    placeholder={editing?.home_channel?.chat_id ?? "chat ID (e.g. 123456789)"}
+                    onChange={(e) => {
+                      setDraftHomeChatId(e.target.value);
+                      if (e.target.value.trim()) setHomeClearPending(false);
+                    }}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor="field-home-name">Name (optional)</Label>
+                  <Input
+                    id="field-home-name"
+                    value={draftHomeName}
+                    disabled={homeChannelDisabled}
+                    placeholder={editing?.home_channel?.name ?? "e.g. My group"}
+                    onChange={(e) => {
+                      setDraftHomeName(e.target.value);
+                      if (e.target.value.trim()) setHomeClearPending(false);
+                    }}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor="field-home-thread">Thread ID (optional)</Label>
+                  <Input
+                    id="field-home-thread"
+                    value={draftHomeThread}
+                    disabled={homeChannelDisabled}
+                    placeholder={editing?.home_channel?.thread_id ?? "for threaded platforms (e.g. Telegram forums)"}
+                    onChange={(e) => {
+                      setDraftHomeThread(e.target.value);
+                      if (e.target.value.trim()) setHomeClearPending(false);
+                    }}
+                  />
+                </div>
+
+                {editing?.home_channel && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      ghost
+                      size="sm"
+                      className="text-destructive"
+                      disabled={homeChannelDisabled}
+                      onClick={() => {
+                        setHomeClearPending(true);
+                        setDraftHomeChatId("");
+                        setDraftHomeName("");
+                        setDraftHomeThread("");
+                      }}
+                    >
+                      {homeClearPending ? "Will clear on save" : "Clear home channel"}
+                    </Button>
+                  </div>
+                )}
+              </div>
 
               <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
                 <Button

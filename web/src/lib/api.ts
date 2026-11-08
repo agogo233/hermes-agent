@@ -1823,10 +1823,19 @@ export interface MessagingPlatformsResponse {
   platforms: MessagingPlatform[];
 }
 
+export interface HomeChannelUpdate {
+  chat_id: string;
+  name?: string;
+  thread_id?: string;
+}
+
 export interface MessagingPlatformUpdate {
   enabled?: boolean;
   env?: Record<string, string>;
   clear_env?: string[];
+  /** Set a home channel for cron deliveries / notifications. `clear_home_channel` wins. */
+  home_channel?: HomeChannelUpdate;
+  clear_home_channel?: boolean;
 }
 
 export interface MessagingPlatformTestResult {
