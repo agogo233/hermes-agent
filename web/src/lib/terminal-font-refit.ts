@@ -4,7 +4,7 @@
  * when a terminal first opens.
  */
 export const TERMINAL_FONT_FAMILY =
-  "'JetBrains Mono', 'Cascadia Mono', 'Fira Code', 'MesloLGS NF', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace";
+  "'JetBrains Mono', 'Cascadia Mono', 'Fira Code', 'MesloLGS NF', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', 'Sarasa Mono SC', 'Noto Sans Mono CJK SC', monospace";
 
 const BUNDLED_FACES = ["400", "700", "italic 400"].map(
   (descriptor) => `${descriptor} 1em 'JetBrains Mono'`,

@@ -80,13 +80,23 @@ async def set_dashboard_theme(body: ThemeSetBody, profile: Optional[str] = None)
 # Curated font-override ids, kept in sync with FONT_CHOICES in web/src/themes/fonts.ts. The
 # frontend owns the stacks + webfont URLs; the backend only needs the id allow-list to reject
 # anything unvetted (the webfont URL is injected as a <link>, so never accept arbitrary ids/URLs).
-_FONT_DEFAULT_ID = "theme"
+# ``_FONT_THEME_ID`` is the explicit "follow the active theme" sentinel; it is deliberately
+# separate from ``_FONT_DEFAULT_ID`` so a fresh install's default (Microsoft YaHei, the fork's
+# dashboard default) never coerces a user who opted back into the theme font.
+_FONT_THEME_ID = "theme"
+_FONT_DEFAULT_ID = "microsoft-yahei"
 _FONT_CHOICES = frozenset({
     "system-sans", "system-serif", "system-mono",
-    "inter", "ibm-plex-sans", "work-sans", "atkinson-hyperlegible", "dm-sans",
+    "microsoft-yahei", "inter", "ibm-plex-sans", "work-sans", "atkinson-hyperlegible", "dm-sans",
     "spectral", "fraunces", "source-serif",
     "jetbrains-mono", "ibm-plex-mono", "space-mono",
 })
+
+
+def _valid_font_id(candidate: Optional[str]) -> str:
+    """Return a vetted font id, coercing unknown ids to the default (never 400 so a stale
+    client can't wedge the picker). The theme sentinel and every catalog id are accepted."""
+    return candidate if candidate == _FONT_THEME_ID or candidate in _FONT_CHOICES else _FONT_DEFAULT_ID
 
 
 @router.get("/api/dashboard/font")
@@ -94,16 +104,16 @@ async def get_dashboard_font(profile: Optional[str] = None):
     """Return the active font override (``"theme"`` = use the theme's font)."""
     def _run():
         font = cfg_get(load_config(), "dashboard", "font", default=_FONT_DEFAULT_ID)
-        return {"font": font if font in _FONT_CHOICES else _FONT_DEFAULT_ID}
+        return {"font": _valid_font_id(font)}
 
     return await config_scoped_to_thread(profile, _run)
 
 
 @router.put("/api/dashboard/font")
 async def set_dashboard_font(body: FontSetBody, profile: Optional[str] = None):
-    """Set the font override (config.yaml). Unknown ids coerce to ``"theme"`` rather than
+    """Set the font override (config.yaml). Unknown ids coerce to the default rather than
     400 so a stale client can't wedge the picker."""
-    font = body.font if body.font in _FONT_CHOICES else _FONT_DEFAULT_ID
+    font = _valid_font_id(body.font)
     await asyncio.to_thread(_set_dashboard_key, "font", font, profile)
     return {"ok": True, "font": font}
 
