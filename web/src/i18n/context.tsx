@@ -1,4 +1,4 @@
-import { applyDocumentLocale, LOCALE_ENDONYMS } from "@hermes/shared/i18n";
+import { applyDocumentLocale, LOCALE_ENDONYMS, mergeTranslations } from "@hermes/shared/i18n";
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { Locale, Translations } from "./types";
 import { en } from "./en";
@@ -94,7 +94,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const value: I18nContextValue = {
     locale,
     setLocale,
-    t: TRANSLATIONS[locale],
+    t: mergeTranslations(en, TRANSLATIONS[locale]),
   };
 
   return (

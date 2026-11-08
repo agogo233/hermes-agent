@@ -46,6 +46,11 @@ export const zh: Translations = {
     pluginLoadFailed:
       "无法加载此插件的脚本。请检查网络请求（dashboard-plugins/…）以及服务器上的插件路径。",
     pluginNotRegistered: "插件脚本未调用 register()，或执行出错。请打开浏览器控制台查看详情。",
+    loadFailed: "无法加载{what}。请检查看板服务器是否正在运行，然后点击重试。",
+    loadFailedDetails: "详情：{detail}",
+    gateway: "网关",
+    gatewayHint:
+      "消息平台、API 服务器和 Webhook 在「频道」页面配置。这些是网关级设置（代理/中继模式和全局允许列表）。",
   },
 
   app: {
@@ -59,6 +64,8 @@ export const zh: Translations = {
     activeSessionsLabel: "活跃会话：",
     gatewayStatusLabel: "网关状态：",
     gatewayStrip: {
+      degraded: "已降级",
+      heartbeatStale: "心跳过期",
       failed: "启动失败",
       off: "关闭",
       running: "运行中",
@@ -89,6 +96,31 @@ export const zh: Translations = {
     statusOverview: "状态概览",
     system: "系统",
     webUi: "管理面板",
+    managingProfile: "正在管理配置",
+    currentProfileOption: "此看板（{name}）",
+    managingProfileBanner:
+      "正在管理配置“{name}”——配置、密钥、技能、MCP、模型和新对话都应用于该配置。",
+    memoryOomRestartBanner:
+      "你的代理意外重启，很可能是因为内存耗尽。长时间会话和大量并发任务会增加内存占用。",
+    memoryCriticalBanner:
+      "你的代理内存即将耗尽，可能重启。请考虑关闭空闲会话或升级内存。",
+    memoryElevatedBanner: "你的代理内存即将不足。",
+    diskCriticalBanner:
+      "你的代理磁盘几乎已满。新消息、记忆和设置可能无法保存。",
+    diskElevatedBanner:
+      "你的代理磁盘正在填满。请考虑清理旧会话或扩容存储。",
+    multiplexStandaloneBanner:
+      "你的网关只服务于一个配置。未服务：{profiles}。原因：{reason}。修复：hermes gateway migrate --multiplex",
+    dismiss: "忽略",
+    sharedMetricsTitle: "帮助改进 Hermes？",
+    sharedMetricsBody:
+      "共享指标是有限计数器，从不包含提示词、文件、路径或错误文本。共享会将它们每天发送给 Nous。",
+    sharedMetricsReaskBody:
+      "再次询问：更早的版本可能在你能看到此问题前就已保存“不用了”。",
+    sharedMetricsShare: "与 Nous 共享",
+    sharedMetricsOff: "不用了",
+    sharedMetricsDetails: "详情",
+    sharedMetricsSaveFailed: "无法保存你的选择",
   },
 
   // ── System page: Memory section ──
@@ -131,6 +163,14 @@ export const zh: Translations = {
     updateHermes: "更新 Hermes",
     updatingHermes: "正在更新 Hermes…",
     waitingForOutput: "等待输出…",
+    disabled: "已禁用",
+    restartGatewayConfirmMessage:
+      "这将重启 Hermes 网关进程。已连接的频道和活跃会话之后会重新连接。",
+    restartGatewayConfirmTitle: "重启网关？",
+    updateHermesConfirmMessage:
+      "这将运行 hermes update，完成后重启网关。期间活跃会话会保留其提示词缓存。",
+    updateHermesConfirmNow: "立即更新",
+    updateHermesConfirmTitle: "更新 Hermes？",
   },
 
   sessions: {
@@ -330,12 +370,21 @@ export const zh: Translations = {
     pause: "暂停",
     resume: "恢复",
     triggerNow: "立即触发",
+    loadWhat: "定时任务",
+    scriptRequired:
+      "仅脚本任务需要脚本路径。请在「脚本」字段填写，或将任务切换回提示词模式。",
+    overdueSince: "逾期自",
+    schedulerLastTicked:
+      "调度器上次触发于 {when}——自那以后到期的任务尚未执行",
     delivery: {
       local: "本地",
       telegram: "Telegram",
       discord: "Discord",
       slack: "Slack",
       email: "邮件",
+      needsHomeChannel: "请先设置主页频道",
+      noneConfigured:
+        "未配置任何消息平台。请在「频道」下配置一个以投递报告。",
     },
   },
 
@@ -369,6 +418,38 @@ export const zh: Translations = {
     created: "已创建",
     deleted: "已删除",
     renamed: "已重命名",
+    activeProfile: "当前配置",
+    activeBadge: "活跃",
+    setActive: "设为当前",
+    activeSet: "已设为当前配置",
+    gatewayRunning: "网关运行中",
+    gatewayStopped: "网关已停止",
+    gatewayRunningWarning: "此配置的网关正在运行——它将被停止。",
+    aliasBadge: "别名",
+    description: "描述",
+    descriptionPlaceholder:
+      "此配置擅长什么？用于按角色路由看板任务。",
+    noDescription: "暂无描述",
+    editDescription: "编辑描述",
+    descriptionSaved: "描述已保存",
+    reviewBadge: "审核",
+    autoGenerate: "自动生成",
+    generating: "生成中…",
+    describeFailed: "无法生成描述",
+    distribution: "分配",
+    advancedOptions: "高级选项",
+    cloneAll: "克隆所有内容（记忆、会话、技能、状态）",
+    noSkillsOption: "不植入内置技能",
+    descriptionOptional: "描述（可选）",
+    modelOptional: "模型（可选）",
+    modelInherit: "从克隆来源/默认继承",
+    modelLoading: "正在加载模型…",
+    modelNone:
+      "尚未设置任何模型提供方。请在「密钥」下添加 API 密钥，或在「模型」下登录提供方。",
+    editModel: "更改模型",
+    modelSaved: "模型已更新",
+    modelSelect: "选择模型",
+    actions: "操作",
   },
 
   pluginsPage: {
@@ -418,6 +499,27 @@ export const zh: Translations = {
     versionBadge: "版本",
     showInSidebar: "在侧边栏显示",
     hideFromSidebar: "从侧边栏隐藏",
+    updateConsentBody: (name: string, sha: string) =>
+      `“${name}”（${sha}）的新目录钉包含了已安装版本没有的界面。只有在你信任它们时才应用：`,
+    updateScanBody: (name: string, count: number) =>
+      `安全扫描在新代码 ${name} 中发现 ${count} 处问题。只有在你信任来源时才更新：`,
+    updateScanBlocked: (name: string) =>
+      `安全扫描将 ${name} 的新代码评定为危险。更新未应用。`,
+    catalogHeading: "插件目录",
+    catalogHint:
+      "由 Nous 审核、固定到确切提交的插件。从这里安装以获取供应链安全版本。",
+    catalogSearchPlaceholder: "搜索目录...",
+    catalogEmpty: "没有匹配的目录条目。",
+    catalogEmptyDocsLink: "了解 Hermes 插件",
+    catalogInstallBtn: "安装",
+    catalogInstalledBadge: "已安装 ✓",
+    catalogUpdateBtn: "有可用更新",
+    catalogRemovedBadge: "已移除",
+    catalogConfirmTitle: "安装此插件？",
+    catalogConfirmInstallNote:
+      "插件默认禁用；安装后请启用以激活。",
+    catalogRequiresEnv: "需要环境变量",
+    removedFromCatalog: "已从目录中移除",
   },
 
   skills: {
@@ -438,6 +540,13 @@ export const zh: Translations = {
     setupNeeded: "需要配置",
     disabledForCli: "CLI 已禁用",
     more: "还有 {count} 个",
+    loadWhat: "技能",
+    browseHub: "浏览技能中心",
+    createSkill: "创建技能",
+    profileSelector: "配置",
+    currentProfile: "当前（{name}）",
+    managingProfile:
+      "正在管理配置“{name}”——开关应用于该配置，而非此看板的。",
   },
 
   config: {
@@ -560,12 +669,18 @@ export const zh: Translations = {
   theme: {
     title: "主题",
     switchTheme: "切换主题",
+    fontTitle: "字体",
+    fontDefault: "主题默认",
+    fontDefaultHint: "使用当前主题的字体",
+    fontSans: "Sans",
+    fontSerif: "Serif",
+    fontMono: "Mono",
   },
 
   achievements: {
     hero: {
-      kicker: "Agentic Gamerscore",
-      title: "Hermes Achievements",
+      kicker: "代理游戏积分",
+      title: "Hermes 成就",
       subtitle:
         "从真实会话历史中获得的 Hermes 可收集徽章。已知尚未达成的成就显示为「已发现」；秘密成就在首次出现匹配行为之前保持隐藏。",
       scan_subtitle:
@@ -665,7 +780,7 @@ export const zh: Translations = {
         "「在 X 上分享」会在新标签页中打开预填好的帖子。如果想附上 1200×630 的徽章，请先点击「复制图片」—— X 允许你直接粘贴到推文编辑器中。「下载 PNG」会将文件保存下来，可在任意位置使用。",
       clipboard_unsupported:
         "此浏览器不支持复制剪贴板图片 —— 请改用「下载」。",
-      tweet_text: "Just unlocked {tier_part}\"{name}\" in Hermes Agent ☤",
+      tweet_text: "刚在 Hermes Agent 中解锁 {tier_part}\"{name}\" ☤",
     },
   },
 
@@ -682,11 +797,11 @@ export const zh: Translations = {
     slug: "标识",
     slugHint: "— 小写字母、连字符，例如 atm10-server",
     confirmDoneMany:
-      "Mark {n} tasks as done? The workers' claims are released and dependent children become ready.",
+      "将 {n} 个任务标记为完成？工作者的认领将被释放，依赖的子任务将变为就绪。",
     confirmArchiveMany:
-      "Archive {n} tasks? They disappear from the default board view.",
+      "归档 {n} 个任务？它们将从默认看板视图中消失。",
     confirmBlockedMany:
-      "Mark {n} tasks as blocked? The workers' claims are released.",
+      "将 {n} 个任务标记为阻塞？工作者的认领将被释放。",
     displayName: "显示名称",
     displayNameHint: "（可选）",
     description: "描述",
@@ -836,5 +951,32 @@ export const zh: Translations = {
       "工作区路径（可选，留空则根据负责人推导）",
     logTruncated: "（显示最后 100 KB — 完整日志位于 ",
     logAt: "）",
+    needsAssignee: "需要负责人",
+    needsAssigneeHint: "依赖已满足，但在你分配配置前调度器会跳过此任务。",
+    confirmScheduled: "将此任务移至「已调度」？用于已知的时间延迟，而非人工阻塞。",
+    newTaskTitle: "新任务 — {column}",
+    taskTitleLabel: "标题",
+    assigneeLabel: "负责人",
+    assigneeLabelHint: "（留空 = 调度器选择）",
+    skillsLabel: "技能",
+    skillsLabelHint: "（可选，逗号分隔）",
+    parentLabel: "父任务",
+    parentLabelHint: "（子任务在父任务完成前保持阻塞）",
+    create: "创建",
+    boardSettings: "设置",
+    boardSettingsTitle:
+      "看板设置 — 名称、描述以及新任务继承的默认项目目录",
+    boardSettingsTitleFor: "看板设置 — {name}",
+    projectDirectoryOverrideHint:
+      "新任务将其作为工作区默认值继承；每个任务仍可在创建对话框中覆盖。",
+    saving: "保存中…",
+    commentHint:
+      "评论会在工作者下次运行或 kanban_show() 时送达——无需先阻塞任务。",
+    commentHintTitle:
+      "评论是与任务工作者对话的渠道。它们会立即落在线程上——无需先阻塞任务。正在运行的工作者会在下次 kanban_show() 或重启时拾取线程；阻塞仅用于你想让工作者停止并等待输入时。",
+    trash: {
+      confirmTitle: "删除任务？",
+      confirmManyTitle: "删除 {n} 个任务？",
+    },
   },
 };
