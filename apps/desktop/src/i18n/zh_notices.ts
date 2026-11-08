@@ -39,8 +39,12 @@ export const zhNotices = {
     openBilling: '打开账单',
     addCredits: '添加额度',
     dismiss: '忽略'
+  },
+  connectorOffer: {
+    heading: '保留你已连接的应用',
+    body: '登录免费的 Nous 账户，以在你账户上保留已连接的应用（如 Gmail 或 Slack）。'
   }
 } satisfies Pick<
   TranslationOverrides,
-  'remoteDisplayBanner' | 'butterbar' | 'promptNotices' | 'keepAwakeOffer' | 'billingBlock'
+  'remoteDisplayBanner' | 'butterbar' | 'promptNotices' | 'keepAwakeOffer' | 'connectorOffer' | 'billingBlock'
 >

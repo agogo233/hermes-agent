@@ -72,5 +72,10 @@ export const zhOnboarding: TranslationOverrides['onboarding'] = {
   price: (input, output) => `${input} 输入 / ${output} 输出每 Mtok`,
   change: '更改',
   startChatting: '开始',
-  docs: provider => `${provider} 文档`
+  docs: provider => `${provider} 文档`,
+  signInDidNotFinish: provider =>
+    `使用 ${provider} 登录未完成。请检查网络连接并重试，或选择其他提供方。`,
+  tryAgain: '重试',
+  useApiKeyInstead: '改用 API 密钥',
+  errorDetails: '详情'
 }

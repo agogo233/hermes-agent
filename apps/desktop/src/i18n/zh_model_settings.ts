@@ -38,6 +38,8 @@ export const zhModelSettings: TranslationOverride<ModelSettingsTranslations> = {
   restartingBackend: '正在重启后端...',
   restartFailed: '无法重启后端',
   auxiliaryTitle: '辅助模型',
+  mainAppliedTitle: '主模型已更新',
+  mainAppliedMessage: (model: string) => `新会话将使用 ${model}。`,
   resetAllToMain: '全部重置为主模型',
   staleAuxDismiss: '不再显示',
   auxiliaryDesc: '辅助任务默认使用主模型。你可以为任意任务指定专用模型。',

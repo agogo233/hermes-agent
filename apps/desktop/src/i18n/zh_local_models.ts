@@ -115,5 +115,11 @@ export const zhLocalModels: TranslationOverride<Translations['settings']['localM
   deleteAction: '删除模型',
   deleteConfirm: model => `从磁盘删除 ${model}？`,
   deleted: model => `已删除 ${model}。`,
-  deleteFailed: '删除失败'
+  deleteFailed: '删除失败',
+  downloadEtaSeconds: (count: number) => `${count} 秒`,
+  downloadEtaMinutes: (count: number) => `${count} 分钟`,
+  downloadEtaHours: (hours: number, minutes: number) =>
+    minutes ? `${hours} 小时 ${minutes} 分钟` : `${hours} 小时`,
+  downloadPauseFailed: (model: string) => `无法暂停 ${model} 的下载`,
+  downloadResumeFailed: (model: string) => `无法继续 ${model} 的下载`
 }

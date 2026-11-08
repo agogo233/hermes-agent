@@ -32,6 +32,7 @@ export const zhConnectorCard: TranslationOverrides['connectors'] = {
   required: '必填',
   namedAccount: (app, alias) => `Hermes 已将这个 ${app} 账户命名为 ${alias}。`,
   renameAccount: '重命名',
+  checking: '正在检查你的应用…',
   directory: {
     suggested: '推荐',
     allApps: '全部应用',

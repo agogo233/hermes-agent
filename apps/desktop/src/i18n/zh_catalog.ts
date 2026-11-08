@@ -58,7 +58,68 @@ export const zhCatalog = {
   snapshotHint: '内容来自 Hermes 目录。浏览时不会连接来源代码仓库。',
   installHint: '安装前请检查源代码。更改将在新会话中生效。',
   results: (count: number) => `${count.toLocaleString('zh')} 个结果`,
-  back: '返回结果'
+  back: '返回结果',
+  tier: '等级',
+  previousSlide: '上一个精选',
+  nextSlide: '下一个精选',
+  tierLabels: {
+    official: '官方',
+    verified: '已认证',
+    community: '社区'
+  },
+  tiers: {
+    official: {
+      title: '官方插件',
+      blurb: '由 Nous Research 构建和维护。'
+    },
+    verified: {
+      title: '已认证插件',
+      blurb: '来自该集成背后的公司，由 Nous 认证。'
+    }
+  },
+  moreToExplore: '更多待探索',
+  moreToExploreBlurb: '目录中较小的角落，尽在此处。',
+  developer: {
+    heading: '开发者模式',
+    title: '为 Hermes 构建',
+    pitch: '构建了工具、连接器、插件或 Mod？',
+    pitchFollowUp: '想构建但不知如何开始？',
+    submit: '提交 Mod',
+    docs: '开发者文档'
+  },
+  toolsets: {
+    mostUsed: '最常用',
+    mostUsedBlurb: '此配置上 Hermes 最常使用的工具集。',
+    essentials: '核心',
+    essentialsBlurb: '多数 Hermes 工作依赖的内容。',
+    themes: {
+      work: {
+        label: '浏览、工作和自动化',
+        blurb: '驱动浏览器和桌面、编辑文件、运行代码并调度工作。'
+      },
+      create: {
+        label: '观看、聆听和创作',
+        blurb: '查看图片和视频、转写语音并生成媒体。'
+      },
+      recall: {
+        label: '记忆与知识',
+        blurb: 'Hermes 记住的内容，以及它可搜索的技能和历史。'
+      },
+      connect: {
+        label: '连接与触达',
+        blurb: '账户、其他代理、智能家居以及超越网页的搜索。'
+      },
+      more: {
+        label: '更多工具',
+        blurb: '此配置可开启的其他一切。'
+      }
+    },
+    toolCount: (count: number) => `${count} 个工具`,
+    callCount: (count: string, calls: number) => `${count} ${calls} 次调用`
+  },
+  slideOf: (index: number, count: number) => `${index} / ${count}`,
+  skillsFor: (category: string) => `“${category.toLowerCase()}”的技能。`,
+  discoverKind: (kind: string) => `发现${kind}`
 } satisfies TranslationOverrides['catalog']
 
 export const zhSkillDeepLink = {

@@ -106,5 +106,17 @@ export const zhErrorCodes: Partial<ThreadCopy['errorCodes']> = {
     body: '本地模型服务器尚未运行：它可能仍在启动。请稍后重试，或切换到其他模型。',
     bodyNoRetry:
       '本地模型服务器已关闭。请在 Hermes 桌面应用或终端中的 `hermes model` 启动它，或切换到其他模型。'
+  },
+  stream_drop: {
+    title: '回复被截断',
+    body: '回复完成前连接已断开。请重试以重新发送。'
+  },
+  SESSION_OWNER_BUSY: {
+    title: '此聊天中 Hermes 正忙',
+    body: '这里正在运行另一个回合，你的消息无法加入其队列。未发送任何内容。等该回合结束后重试。'
+  },
+  SESSION_OWNER_UNCONFIRMED: {
+    title: '你的消息可能已入队',
+    body: '网关未及时确认你的消息。如果已入队，它会在上一个回合完成或解决后运行。重新发送前请先查看聊天。'
   }
 }
