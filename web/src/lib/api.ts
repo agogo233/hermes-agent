@@ -46,6 +46,7 @@ import type {
   ManagedFileWriteResponse,
 } from "./api-files";
 import { dashboardServingProfile } from "./profile-bootstrap";
+import { PROFILE_SCOPED_PREFIXES, sameOriginRequestUrl as resolveSameOrigin } from "./api-request-scope";
 
 // The dashboard can be served either at the root of its host (e.g.
 // https://kanban.tilos.com/) or under a URL prefix when reverse-proxied
@@ -122,65 +123,6 @@ export function getManagementProfile(): string {
   return _managementProfile || dashboardServingProfile();
 }
 
-// Endpoint families that honor ?profile= on the backend (web_server.py
-// _profile_scope or explicit per-profile DB opens). Anything else — cron (which
-// has its own per-job profile params), profiles themselves — is machine-global or
-// self-scoped and must NOT be rewritten.
-const PROFILE_SCOPED_PREFIXES = [
-  "/api/status",
-  "/api/gateway",
-  "/api/analytics",
-  "/api/skills",
-  "/api/tools/toolsets",
-  "/api/config",
-  "/api/env",
-  "/api/mcp",
-  "/api/messaging/platforms",
-  "/api/messaging/telegram/onboarding",
-  "/api/messaging/whatsapp/onboarding",
-  "/api/messaging/weixin/onboarding",
-  "/api/messaging/qqbot/onboarding",
-  // OAuth/account state is profile-owned too: status, login sessions, polling,
-  // cancellation, and disconnect must all follow the selected management
-  // profile rather than silently targeting the dashboard process's profile.
-  "/api/providers/oauth",
-  "/api/model/info",
-  "/api/model/set",
-  "/api/model/auxiliary",
-  "/api/model/moa",
-  "/api/model/options",
-  // A named profile keeps its own pairing whitelist, and its gateway only
-  // consults that one — approving into the global store would grant access
-  // the running gateway never sees.
-  "/api/pairing",
-  // Memory files, the curator state file, webhook subscriptions, shell hooks,
-  // checkpoints, backups/imports and the dashboard's own theme/font/plugin
-  // preferences all live in a profile home. One backend now serves every
-  // profile, so the switcher's selection has to ride on the request or a reset
-  // lands on the launch profile's data.
-  "/api/memory",
-  "/api/curator",
-  "/api/webhooks",
-  "/api/ops",
-  "/api/logs",
-  "/api/portal",
-  // Pool entries live in the profile's home, and DELETE /api/credentials/pool/{provider}/{index}
-  // is destructive — without this prefix the dashboard's remove button never named a profile and
-  // a multi-profile host refused it outright.
-  "/api/credentials",
-  // Not covered by "/api/dashboard/plugins": this one writes memory.provider + context.engine
-  // into the named profile's config.yaml (same key as PUT /api/memory/provider).
-  "/api/dashboard/plugin-providers",
-  // Model/runtime activation persists into config.yaml; the read routes ignore an extra param.
-  "/api/model/recommended-default",
-  "/api/local-models",
-  "/api/dashboard/theme",
-  "/api/dashboard/font",
-  "/api/dashboard/plugins",
-  "/api/plugins/", // a plugin's backend: the selected profile's copy, as its bundle is (PLG-3)
-  // The shared-metrics answer is one per profile (telemetry.shared_metrics in its config.yaml).
-  "/api/shared-metrics",
-];
 
 // The dashboard's own profile when nothing else named one. The backend injects it only
 // when it provably resolves back to the serving home, so this can never retarget another
@@ -202,6 +144,7 @@ export async function fetchJSON<T>(
   options?: FetchJSONOptions,
 ): Promise<T> {
   url = withManagementProfile(url);
+  const target = resolveSameOrigin(BASE, url);
   // Inject the session token into all /api/ requests.
   const headers = new Headers(init?.headers);
   const token = window.__HERMES_SESSION_TOKEN__;
@@ -210,7 +153,7 @@ export async function fetchJSON<T>(
   }
   let res: Response;
   try {
-    res = await fetch(`${BASE}${url}`, {
+    res = await fetch(target, {
       ...init,
       headers,
       // ``credentials: 'include'`` so the cookie-auth path (gated mode) works
@@ -218,6 +161,10 @@ export async function fetchJSON<T>(
       // server doesn't read cookies and the legacy session-token header is
       // already attached above.
       credentials: init?.credentials ?? "include",
+      // After ``...init`` so a caller cannot widen it: the browser then refuses a
+      // cross-origin redirect and any ``<base href>`` resolution off this origin,
+      // which the up-front URL check cannot see.
+      mode: "same-origin",
     });
   } catch (cause) {
     // fetch() only rejects when the request never got a response: the
@@ -360,15 +307,17 @@ export async function authedFetch(
   // not the launch profile's, and an unprofiled back door beside a family that now
   // 400s is exactly how the next hole gets in.
   url = withManagementProfile(url);
+  const target = resolveSameOrigin(BASE, url);
   const headers = new Headers(init?.headers);
   const token = window.__HERMES_SESSION_TOKEN__;
   if (token) {
     setSessionHeader(headers, token);
   }
-  return fetch(`${BASE}${url}`, {
+  return fetch(target, {
     ...init,
     headers,
     credentials: init?.credentials ?? "include",
+    mode: "same-origin",
   });
 }
 
@@ -715,48 +664,6 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key }),
     }),
-
-  // Custom model endpoints (OpenAI-compatible ``providers`` entries)
-  getCustomEndpoints: (profile = getManagementProfile()) =>
-    fetchJSON<CustomEndpointsResponse>(
-      appendProfileParam("/api/providers/custom-endpoints", profile),
-    ),
-  saveCustomEndpoint: (body: CustomEndpointUpdate, profile = getManagementProfile()) =>
-    fetchJSON<CustomEndpointsResponse>(
-      appendProfileParam("/api/providers/custom-endpoints", profile),
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      },
-    ),
-  validateCustomEndpoint: (body: CustomEndpointUpdate) =>
-    fetchJSON<CustomEndpointValidationResponse>("/api/providers/custom-endpoints/validate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }),
-  testProvider: (body: { provider: string; base_url: string; api_key?: string; model?: string }) =>
-    fetchJSON<{ ok: boolean; reachable: boolean; message: string; models: string[]; latency_ms?: number }>(
-      "/api/providers/validate",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // The live-probe route validates an env var shape: OPENAI_BASE_URL probes
-        // an OpenAI-compatible endpoint's connectivity and model list.
-        body: JSON.stringify({ key: "OPENAI_BASE_URL", value: body.base_url, api_key: body.api_key }),
-      },
-    ),
-  activateCustomEndpoint: (id: string, profile = getManagementProfile()) =>
-    fetchJSON<{ ok: boolean; provider: string; model: string }>(
-      appendProfileParam(`/api/providers/custom-endpoints/${encodeURIComponent(id)}/activate`, profile),
-      { method: "POST" },
-    ),
-  deleteCustomEndpoint: (id: string, profile = getManagementProfile()) =>
-    fetchJSON<CustomEndpointsResponse>(
-      appendProfileParam(`/api/providers/custom-endpoints/${encodeURIComponent(id)}`, profile),
-      { method: "DELETE" },
-    ),
 
   // Cron jobs
   getCronJobs: (profile = "all") =>
@@ -1119,63 +1026,6 @@ export const api = {
   cancelWhatsAppOnboarding: (pairingId: string) =>
     fetchJSON<{ ok: boolean }>(
       `/api/messaging/whatsapp/onboarding/${encodeURIComponent(pairingId)}`,
-      { method: "DELETE" },
-    ),
-  startWeixinOnboarding: () =>
-    fetchJSON<WeixinOnboardingStartResponse>("/api/messaging/weixin/onboarding/start", {
-      method: "POST",
-    }),
-  getWeixinOnboardingStatus: (pairingId: string) =>
-    fetchJSON<WeixinOnboardingStatusResponse>(
-      `/api/messaging/weixin/onboarding/${encodeURIComponent(pairingId)}`,
-    ),
-  applyWeixinOnboarding: (
-    pairingId: string,
-    body: { dm_policy?: string; allowed_users?: string; home_channel?: boolean; profile?: string },
-  ) =>
-    fetchJSON<WeixinOnboardingApplyResponse>(
-      `/api/messaging/weixin/onboarding/${encodeURIComponent(pairingId)}/apply`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      },
-    ),
-  cancelWeixinOnboarding: (pairingId: string) =>
-    fetchJSON<{ ok: boolean }>(
-      `/api/messaging/weixin/onboarding/${encodeURIComponent(pairingId)}`,
-      { method: "DELETE" },
-    ),
-  startQqbotOnboarding: () =>
-    fetchJSON<QqbotOnboardingStartResponse>("/api/messaging/qqbot/onboarding/start", {
-      method: "POST",
-    }),
-  getQqbotOnboardingStatus: (pairingId: string) =>
-    fetchJSON<QqbotOnboardingStatusResponse>(
-      `/api/messaging/qqbot/onboarding/${encodeURIComponent(pairingId)}`,
-    ),
-  applyQqbotOnboarding: (
-    pairingId: string,
-    body: {
-      dm_policy?: string;
-      allowed_users?: string;
-      group_policy?: string;
-      group_allowed_users?: string;
-      home_channel?: boolean;
-      profile?: string;
-    },
-  ) =>
-    fetchJSON<QqbotOnboardingApplyResponse>(
-      `/api/messaging/qqbot/onboarding/${encodeURIComponent(pairingId)}/apply`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      },
-    ),
-  cancelQqbotOnboarding: (pairingId: string) =>
-    fetchJSON<{ ok: boolean }>(
-      `/api/messaging/qqbot/onboarding/${encodeURIComponent(pairingId)}`,
       { method: "DELETE" },
     ),
 
@@ -1823,19 +1673,10 @@ export interface MessagingPlatformsResponse {
   platforms: MessagingPlatform[];
 }
 
-export interface HomeChannelUpdate {
-  chat_id: string;
-  name?: string;
-  thread_id?: string;
-}
-
 export interface MessagingPlatformUpdate {
   enabled?: boolean;
   env?: Record<string, string>;
   clear_env?: string[];
-  /** Set a home channel for cron deliveries / notifications. `clear_home_channel` wins. */
-  home_channel?: HomeChannelUpdate;
-  clear_home_channel?: boolean;
 }
 
 export interface MessagingPlatformTestResult {
@@ -2275,9 +2116,6 @@ export interface EnvVarInfo {
   channel_managed?: boolean;
   /** True when this key is set in .env but not in any catalog (user-added custom key). */
   custom?: boolean;
-  /** Provider-grouping hints derived from the unified provider catalog. */
-  provider?: string;
-  provider_label?: string;
 }
 
 export interface TelegramOnboardingStartResponse {
@@ -2301,60 +2139,6 @@ export interface TelegramOnboardingApplyResponse {
   ok: boolean;
   platform: "telegram";
   bot_username?: string;
-  needs_restart: boolean;
-  restart_started?: boolean;
-  restart_action?: string;
-  restart_pid?: number | null;
-  restart_error?: string;
-}
-
-export interface WeixinOnboardingStartResponse {
-  pairing_id: string;
-  status:
-    | "waiting"
-    | "connected"
-    | "error"
-    | "expired"
-    | "cancelled";
-  qr_payload?: string | null;
-  expires_at: string;
-  account_id?: string | null;
-  user_id?: string | null;
-  error?: string | null;
-}
-
-export type WeixinOnboardingStatusResponse = WeixinOnboardingStartResponse;
-
-export interface WeixinOnboardingApplyResponse {
-  ok: boolean;
-  platform: "weixin";
-  needs_restart: boolean;
-  restart_started?: boolean;
-  restart_action?: string;
-  restart_pid?: number | null;
-  restart_error?: string;
-}
-
-export interface QqbotOnboardingStartResponse {
-  pairing_id: string;
-  status:
-    | "waiting"
-    | "connected"
-    | "error"
-    | "expired"
-    | "cancelled";
-  qr_payload?: string | null;
-  expires_at: string;
-  account_id?: string | null;
-  user_id?: string | null;
-  error?: string | null;
-}
-
-export type QqbotOnboardingStatusResponse = QqbotOnboardingStartResponse;
-
-export interface QqbotOnboardingApplyResponse {
-  ok: boolean;
-  platform: "qqbot";
   needs_restart: boolean;
   restart_started?: boolean;
   restart_action?: string;
@@ -2683,48 +2467,6 @@ export interface ModelInfoResponse {
 export type { ModelOptionProvider, ModelOptionsResult };
 
 export type { AuxiliaryModelsResponse, AuxiliaryTaskAssignment } from "./api-aux";
-
-// ── Custom model endpoints ───────────────────────────────────────────
-
-export interface CustomEndpoint {
-  api_key_preview?: string | null;
-  base_url: string;
-  context_length?: number | null;
-  discover_models: boolean;
-  has_api_key: boolean;
-  id: string;
-  is_current?: boolean;
-  model: string;
-  models: string[];
-  name: string;
-  source?: string;
-}
-
-export interface CustomEndpointsResponse {
-  current: { base_url: string; model: string; provider: string };
-  endpoints: CustomEndpoint[];
-  id?: string;
-  ok?: boolean;
-}
-
-export interface CustomEndpointUpdate {
-  api_key?: string;
-  base_url: string;
-  context_length?: number;
-  discover_models?: boolean;
-  id?: string;
-  make_default?: boolean;
-  model: string;
-  models?: string[];
-  name: string;
-}
-
-export interface CustomEndpointValidationResponse {
-  message: string;
-  models: string[];
-  ok: boolean;
-  reachable: boolean;
-}
 export type {
   AgentPluginScanFinding,
   AgentPluginUpdateResponse,
