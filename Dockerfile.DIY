@@ -129,7 +129,7 @@ COPY web/package.json web/
 COPY ui-tui/package.json ui-tui/
 COPY ui-tui/packages/hermes-ink/ ui-tui/packages/hermes-ink/
 COPY apps/shared/ apps/shared/
-COPY scripts/build/node-deps.mjs scripts/build/pnpm-lock.mjs scripts/build/electron-runtime.mjs scripts/build/
+COPY scripts/build/ scripts/build/
 
 # node-deps.mjs 做 pnpm frozen lockfile 安装（同上游 Dockerfile），覆盖
 # web/ui-tui 两个 workspace。

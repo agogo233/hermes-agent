@@ -665,6 +665,48 @@ export const api = {
       body: JSON.stringify({ key }),
     }),
 
+  // Custom model endpoints (OpenAI-compatible ``providers`` entries)
+  getCustomEndpoints: (profile = getManagementProfile()) =>
+    fetchJSON<CustomEndpointsResponse>(
+      appendProfileParam("/api/providers/custom-endpoints", profile),
+    ),
+  saveCustomEndpoint: (body: CustomEndpointUpdate, profile = getManagementProfile()) =>
+    fetchJSON<CustomEndpointsResponse>(
+      appendProfileParam("/api/providers/custom-endpoints", profile),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    ),
+  validateCustomEndpoint: (body: CustomEndpointUpdate) =>
+    fetchJSON<CustomEndpointValidationResponse>("/api/providers/custom-endpoints/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  testProvider: (body: { provider: string; base_url: string; api_key?: string; model?: string }) =>
+    fetchJSON<{ ok: boolean; reachable: boolean; message: string; models: string[]; latency_ms?: number }>(
+      "/api/providers/validate",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // The live-probe route validates an env var shape: OPENAI_BASE_URL probes
+        // an OpenAI-compatible endpoint's connectivity and model list.
+        body: JSON.stringify({ key: "OPENAI_BASE_URL", value: body.base_url, api_key: body.api_key }),
+      },
+    ),
+  activateCustomEndpoint: (id: string, profile = getManagementProfile()) =>
+    fetchJSON<{ ok: boolean; provider: string; model: string }>(
+      appendProfileParam(`/api/providers/custom-endpoints/${encodeURIComponent(id)}/activate`, profile),
+      { method: "POST" },
+    ),
+  deleteCustomEndpoint: (id: string, profile = getManagementProfile()) =>
+    fetchJSON<CustomEndpointsResponse>(
+      appendProfileParam(`/api/providers/custom-endpoints/${encodeURIComponent(id)}`, profile),
+      { method: "DELETE" },
+    ),
+
   // Cron jobs
   getCronJobs: (profile = "all") =>
     fetchJSON<CronJob[]>(`/api/cron/jobs?profile=${encodeURIComponent(profile)}`),
@@ -1026,6 +1068,63 @@ export const api = {
   cancelWhatsAppOnboarding: (pairingId: string) =>
     fetchJSON<{ ok: boolean }>(
       `/api/messaging/whatsapp/onboarding/${encodeURIComponent(pairingId)}`,
+      { method: "DELETE" },
+    ),
+  startWeixinOnboarding: () =>
+    fetchJSON<WeixinOnboardingStartResponse>("/api/messaging/weixin/onboarding/start", {
+      method: "POST",
+    }),
+  getWeixinOnboardingStatus: (pairingId: string) =>
+    fetchJSON<WeixinOnboardingStatusResponse>(
+      `/api/messaging/weixin/onboarding/${encodeURIComponent(pairingId)}`,
+    ),
+  applyWeixinOnboarding: (
+    pairingId: string,
+    body: { dm_policy?: string; allowed_users?: string; home_channel?: boolean; profile?: string },
+  ) =>
+    fetchJSON<WeixinOnboardingApplyResponse>(
+      `/api/messaging/weixin/onboarding/${encodeURIComponent(pairingId)}/apply`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    ),
+  cancelWeixinOnboarding: (pairingId: string) =>
+    fetchJSON<{ ok: boolean }>(
+      `/api/messaging/weixin/onboarding/${encodeURIComponent(pairingId)}`,
+      { method: "DELETE" },
+    ),
+  startQqbotOnboarding: () =>
+    fetchJSON<QqbotOnboardingStartResponse>("/api/messaging/qqbot/onboarding/start", {
+      method: "POST",
+    }),
+  getQqbotOnboardingStatus: (pairingId: string) =>
+    fetchJSON<QqbotOnboardingStatusResponse>(
+      `/api/messaging/qqbot/onboarding/${encodeURIComponent(pairingId)}`,
+    ),
+  applyQqbotOnboarding: (
+    pairingId: string,
+    body: {
+      dm_policy?: string;
+      allowed_users?: string;
+      group_policy?: string;
+      group_allowed_users?: string;
+      home_channel?: boolean;
+      profile?: string;
+    },
+  ) =>
+    fetchJSON<QqbotOnboardingApplyResponse>(
+      `/api/messaging/qqbot/onboarding/${encodeURIComponent(pairingId)}/apply`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    ),
+  cancelQqbotOnboarding: (pairingId: string) =>
+    fetchJSON<{ ok: boolean }>(
+      `/api/messaging/qqbot/onboarding/${encodeURIComponent(pairingId)}`,
       { method: "DELETE" },
     ),
 
@@ -2116,6 +2215,9 @@ export interface EnvVarInfo {
   channel_managed?: boolean;
   /** True when this key is set in .env but not in any catalog (user-added custom key). */
   custom?: boolean;
+  /** Provider-grouping hints derived from the unified provider catalog. */
+  provider?: string;
+  provider_label?: string;
 }
 
 export interface TelegramOnboardingStartResponse {
@@ -2144,6 +2246,100 @@ export interface TelegramOnboardingApplyResponse {
   restart_action?: string;
   restart_pid?: number | null;
   restart_error?: string;
+}
+
+export interface WeixinOnboardingStartResponse {
+  pairing_id: string;
+  status:
+    | "waiting"
+    | "connected"
+    | "error"
+    | "expired"
+    | "cancelled";
+  qr_payload?: string | null;
+  expires_at: string;
+  account_id?: string | null;
+  user_id?: string | null;
+  error?: string | null;
+}
+
+export type WeixinOnboardingStatusResponse = WeixinOnboardingStartResponse;
+
+export interface WeixinOnboardingApplyResponse {
+  ok: boolean;
+  platform: "weixin";
+  needs_restart: boolean;
+  restart_started?: boolean;
+  restart_action?: string;
+  restart_pid?: number | null;
+  restart_error?: string;
+}
+
+export interface QqbotOnboardingStartResponse {
+  pairing_id: string;
+  status:
+    | "waiting"
+    | "connected"
+    | "error"
+    | "expired"
+    | "cancelled";
+  qr_payload?: string | null;
+  expires_at: string;
+  account_id?: string | null;
+  user_id?: string | null;
+  error?: string | null;
+}
+
+export type QqbotOnboardingStatusResponse = QqbotOnboardingStartResponse;
+
+export interface QqbotOnboardingApplyResponse {
+  ok: boolean;
+  platform: "qqbot";
+  needs_restart: boolean;
+  restart_started?: boolean;
+  restart_action?: string;
+  restart_pid?: number | null;
+  restart_error?: string;
+}
+
+export interface CustomEndpoint {
+  api_key_preview?: string | null;
+  base_url: string;
+  context_length?: number | null;
+  discover_models: boolean;
+  has_api_key: boolean;
+  id: string;
+  is_current?: boolean;
+  model: string;
+  models: string[];
+  name: string;
+  source?: string;
+}
+
+export interface CustomEndpointsResponse {
+  current: { base_url: string; model: string; provider: string };
+  endpoints: CustomEndpoint[];
+  id?: string;
+  ok?: boolean;
+}
+
+export interface CustomEndpointUpdate {
+  api_key?: string;
+  base_url: string;
+  context_length?: number;
+  discover_models?: boolean;
+  id?: string;
+  make_default?: boolean;
+  model: string;
+  models?: string[];
+  name: string;
+}
+
+export interface CustomEndpointValidationResponse {
+  message: string;
+  models: string[];
+  ok: boolean;
+  reachable: boolean;
 }
 
 export interface SessionMessage {
