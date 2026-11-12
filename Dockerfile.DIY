@@ -121,6 +121,11 @@ RUN python3 -c 'from pathlib import Path; from pm.install import ensure, install
 
 WORKDIR /opt/hermes
 
+# node-deps.mjs 在包清单层就读 pm/lock.json（pnpm 钉版），而上方 COPY pm/ pm/
+# 发生在 WORKDIR /opt/hermes 之前、落在 /pm；此处再拷一次使 /opt/hermes/pm
+# 在该步骤可用（上游同步后 node-deps.mjs 新增了 pinnedPnpm 读取）。
+COPY pm/ pm/
+
 # --- 层缓存：先拷贝包清单 ---
 # 根包 + workspace 定义先行：pnpm frozen install 只依赖锁文件与 manifests
 # （web/ui-tui/apps/*/hermes-ink 是 pnpm workspaces，见 pnpm-workspace.yaml）。
